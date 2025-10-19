@@ -1,0 +1,51 @@
+[project]
+name = "fastapi-core"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Romilson Luis"}
+]
+readme = "README.md"
+requires-python = "3.12.*"
+dependencies = [
+    "fastapi"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.14.1,<0.15.0)",
+    "pytest (>=8.4.2,<9.0.0)",
+    "pytest-cov (>=7.0.0,<8.0.0)",
+    "taskipy (>=1.14.1,<2.0.0)"
+]
+
+# task run 
+# task test
+
+[tool.taskipy.tasks]
+run = 'fastapi dev fastapi_core/main.py'
+pre_test = 'task lint'
+test = 'pytest -s -x --cov=fastapi_core -vv'
+post_test = 'coverage html'
+lint = 'ruff check . && ruff check . --diff'
+format = 'ruff check . --fix && ruff format .'
+
+#ruff check .
+#ruff format .
+
+[tool.ruff]
+line-length=80 
+extend-exclude = ['migrations']
+
+[tool.ruff.lint]
+preview = true 
+select = ['I', 'F', 'E', 'W', 'PL', 'PT']
+
+[tool.ruff.format]
+preview = true 
+quote-style = 'single'
