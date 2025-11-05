@@ -1,0 +1,51 @@
+{
+  "tabelas": [
+    {
+      "numero": 1,
+      "tipo": "JOGADORES DE CAMPO",
+      "colunas": [
+        "Nome",
+        "POS",
+        "Idade",
+        "Alt",
+        "P",
+        "NAC",
+        "J",
+        "SUB",
+        "D",
+        "GS",
+        "A",
+        "FC",
+        "FS",
+        "CA",
+        "CV",
+        ""
+      ],
+      "numero_colunas": 16
+    },
+    {
+      "numero": 2,
+      "tipo": "JOGADORES DE CAMPO",
+      "colunas": [
+        "Nome",
+        "POS",
+        "Idade",
+        "Alt",
+        "P",
+        "NAC",
+        "J",
+        "SUB",
+        "G",
+        "A",
+        "TC",
+        "CG",
+        "FC",
+        "FS",
+        "CA",
+        "CV"
+      ],
+      "numero_colunas": 16
+    }
+  ],
+  "total_tabelas": 2
+}

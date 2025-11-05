@@ -1,0 +1,11 @@
+# Backend Configuration - Example File
+# Copy this to .env and fill with your values
+
+SECRET_KEY=your-super-secret-key-here
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-admin-password
+DATABASE_URL=sqlite:///./sql_app.db
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+ALGORITHM=HS256
+
+CORS_ORIGINS=http://localhost:8000,http://localhost:9002

@@ -1,0 +1,19 @@
+### Registrar novo usuário
+POST http://localhost:8000/register
+
+Content-Type: application/json
+
+{
+  "email": "teste2@example.com",
+  "password": "teste123"
+}
+
+### Fazer login
+POST http://localhost:8000/token
+Content-Type: application/x-www-form-urlencoded
+
+username=teste2@example.com&password=teste123
+
+### Ver perfil (substitua o token)
+GET http://localhost:8000/users/me/
+Authorization:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0ZTJAZXhhbXBsZS5jb20iLCJleHAiOjE3NjA5NjcxODd9.NIkpyI72ZDMNdMDgLMb4eYQX86Us48G9-WxseXoBboE'

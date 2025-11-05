@@ -1,16 +1,30 @@
 [project]
 name = "fastapi-core"
 version = "0.1.0"
-description = ""
+description = "CBF Manager - Backend API com autenticação"
 authors = [
     {name = "Romilson Luis"}
 ]
 readme = "README.md"
-requires-python = "3.12.*"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi"
+    "fastapi[all]",
+    "uvicorn[standard]",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "python-multipart",
+    "sqlalchemy",
+    "alembic",
+    "pydantic[email]",
+    "python-dotenv",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "beautifulsoup4", # For web scraping
+    "requests" # For making HTTP requests
 ]
+package-mode = false
 
+[tool.poetry]
+packages = [{include = "app"}]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -24,13 +38,15 @@ dev = [
     "taskipy (>=1.14.1,<2.0.0)"
 ]
 
-# task run 
+# task fast
+# task run
 # task test
 
 [tool.taskipy.tasks]
-run = 'fastapi dev fastapi_core/main.py'
+fast = 'poetry install --no-root ; poetry update'
+run = 'uvicorn app.app:app --reload --host 0.0.0.0 --port 8000'
 pre_test = 'task lint'
-test = 'pytest -s -x --cov=fastapi_core -vv'
+test = 'PYTHONPATH=. pytest -s -x --cov=fastapi_core -vv'
 post_test = 'coverage html'
 lint = 'ruff check . && ruff check . --diff'
 format = 'ruff check . --fix && ruff format .'
@@ -39,13 +55,13 @@ format = 'ruff check . --fix && ruff format .'
 #ruff format .
 
 [tool.ruff]
-line-length=80 
+line-length=90
 extend-exclude = ['migrations']
 
 [tool.ruff.lint]
-preview = true 
+preview = true
 select = ['I', 'F', 'E', 'W', 'PL', 'PT']
 
 [tool.ruff.format]
-preview = true 
+preview = true
 quote-style = 'single'
