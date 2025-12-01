@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr
 
 
 class UserBase(BaseModel):
@@ -24,7 +25,7 @@ class User(UserBase):
 class AthleteScrapeResponse(BaseModel):
     """Schema para dados vindos do web scraping"""
     name: str
-    jersey_number: Optional[int] = 0 # Adicionado
+    jersey_number: Optional[int] = 0  # Adicionado
     position: str
     age: int
     height: Optional[float] = 0.0
@@ -34,8 +35,8 @@ class AthleteScrapeResponse(BaseModel):
     substitute_appearances: Optional[int] = 0
     goals: Optional[int] = 0
     assists: Optional[int] = 0
-    shots: Optional[int] = 0
-    shots_on_goal: Optional[int] = 0
+    shots: Optional[int] = 0  # TC (chutes/finalizações)
+    shots_on_goal: Optional[int] = 0  # CG (chutes a gol)
     fouls_committed: Optional[int] = 0
     fouls_suffered: Optional[int] = 0
     yellow_cards: Optional[int] = 0
@@ -66,6 +67,7 @@ class ClubCreate(BaseModel):
     training_center: Optional[str] = None
     espn_url: Optional[str] = None  # ➕ Adiciona campo para URL do ESPN
 
+
 class ClubSimpleResponse(BaseModel):
     """Schema simplificado para clube usado dentro de PlayerResponse"""
     id: int
@@ -81,6 +83,7 @@ class ClubSimpleResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class ClubResponse(BaseModel):
     id: int
     name: str
@@ -92,6 +95,33 @@ class ClubResponse(BaseModel):
     training_center: Optional[str]
     espn_url: Optional[str]  # ➕ Adiciona campo para URL do ESPN
     players: List["PlayerSimpleResponse"] = []
+    training_routines: List["TrainingRoutineResponse"] = []  # Adicionado
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingRoutineBase(BaseModel):
+    club_id: int
+    day_of_week: str
+    time: str
+    activity: str
+    description: Optional[str] = None
+
+
+class TrainingRoutineCreate(TrainingRoutineBase):
+    pass
+
+
+class TrainingRoutineUpdate(BaseModel):
+    day_of_week: Optional[str] = None
+    time: Optional[str] = None
+    activity: Optional[str] = None
+    description: Optional[str] = None
+
+
+class TrainingRoutineResponse(TrainingRoutineBase):
+    id: int
 
     class Config:
         from_attributes = True
@@ -99,7 +129,7 @@ class ClubResponse(BaseModel):
 
 class PlayerCreate(BaseModel):
     name: str
-    jersey_number: Optional[int] = 0 # Adicionado
+    jersey_number: Optional[int] = 0  # Adicionado
     position: str
     age: int
     club_id: int
@@ -110,8 +140,8 @@ class PlayerCreate(BaseModel):
     substitute_appearances: Optional[int] = 0
     goals: Optional[int] = 0
     assists: Optional[int] = 0
-    shots: Optional[int] = 0
-    shots_on_goal: Optional[int] = 0
+    shots: Optional[int] = 0  # TC (chutes/finalizações)
+    shots_on_goal: Optional[int] = 0  # CG (chutes a gol)
     fouls_committed: Optional[int] = 0
     fouls_suffered: Optional[int] = 0
     yellow_cards: Optional[int] = 0
@@ -119,9 +149,10 @@ class PlayerCreate(BaseModel):
     defenses: Optional[int] = 0
     goals_conceded: Optional[int] = 0
 
+
 class PlayerUpdate(BaseModel):
     name: Optional[str] = None
-    jersey_number: Optional[int] = None # Adicionado
+    jersey_number: Optional[int] = None  # Adicionado
     position: Optional[str] = None
     age: Optional[int] = None
     height: Optional[float] = None
@@ -131,8 +162,8 @@ class PlayerUpdate(BaseModel):
     substitute_appearances: Optional[int] = None
     goals: Optional[int] = None
     assists: Optional[int] = None
-    shots: Optional[int] = None
-    shots_on_goal: Optional[int] = None
+    shots: Optional[int] = None  # TC (chutes/finalizações)
+    shots_on_goal: Optional[int] = None  # CG (chutes a gol)
     fouls_committed: Optional[int] = None
     fouls_suffered: Optional[int] = None
     yellow_cards: Optional[int] = None
@@ -141,11 +172,12 @@ class PlayerUpdate(BaseModel):
     goals_conceded: Optional[int] = None
     club_id: Optional[int] = None
 
+
 class PlayerSimpleResponse(BaseModel):
     """Schema simplificado para jogador usado dentro de ClubResponse"""
     id: int
     name: str
-    jersey_number: Optional[int] # Adicionado
+    jersey_number: Optional[int]  # Adicionado
     position: str
     age: int
     height: Optional[float]
@@ -155,8 +187,8 @@ class PlayerSimpleResponse(BaseModel):
     substitute_appearances: Optional[int]
     goals: Optional[int]
     assists: Optional[int]
-    shots: Optional[int]
-    shots_on_goal: Optional[int]
+    shots: Optional[int]  # TC (chutes/finalizações)
+    shots_on_goal: Optional[int]  # CG (chutes a gol)
     fouls_committed: Optional[int]
     fouls_suffered: Optional[int]
     yellow_cards: Optional[int]
@@ -168,10 +200,11 @@ class PlayerSimpleResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class PlayerResponse(BaseModel):
     id: int
     name: str
-    jersey_number: Optional[int] # Adicionado
+    jersey_number: Optional[int]  # Adicionado
     position: str
     age: int
     height: Optional[float]
@@ -181,8 +214,8 @@ class PlayerResponse(BaseModel):
     substitute_appearances: Optional[int]
     goals: Optional[int]
     assists: Optional[int]
-    shots: Optional[int]
-    shots_on_goal: Optional[int]
+    shots: Optional[int]  # TC (chutes/finalizações)
+    shots_on_goal: Optional[int]  # CG (chutes a gol)
     fouls_committed: Optional[int]
     fouls_suffered: Optional[int]
     yellow_cards: Optional[int]

@@ -196,3 +196,36 @@ pyrightconfig.json
 
 # Generated using ignr.py - github.com/Antrikshy/ignr.py
 
+# Custom additions for backend-fastapi-core-luizalabs
+
+# Debug and Test files
+debug_scraper.py
+debug_scraper_corrigido.py
+debug_scraper_final.py
+debug_scraper_fixed.py
+test_scraper.py
+test_scraper_corrigido.py
+test_simple_scraper.py
+test_api_scraping.py
+
+# Data files
+elenco_vasco_espn.csv
+elenco_vasco_espn_final.csv
+elenco_vasco_espn_original.csv
+goleiros_altura_peso.csv
+goleiros_completo.csv
+goleiros_fixo.csv
+goleiros_separacao.csv
+goleiros_teste_final.csv
+goleiros_vasco_espn.csv
+jogadores_campo_vasco_espn.csv
+analisar_colunas_espn.py
+analise_colunas_espn.json
+
+# Database files
+app.db
+cbf_database.db
+sql_app.db.backup
+
+# Sensitive configuration files
+.env

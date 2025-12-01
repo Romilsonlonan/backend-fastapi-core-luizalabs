@@ -1,6 +1,8 @@
+import json
+
 import requests
 from bs4 import BeautifulSoup
-import json
+
 
 def analisar_colunas_espn(url: str):
     """
@@ -30,9 +32,9 @@ def analisar_colunas_espn(url: str):
         }
 
         for i, tabela in enumerate(tabelas, 1):
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"🔍 TABELA {i}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             # Captura o cabeçalho
             cabecalho = [th.text.strip() for th in tabela.find_all("th")]
@@ -52,14 +54,14 @@ def analisar_colunas_espn(url: str):
             tbody = tabela.find("tbody")
             if tbody:
                 linhas = tbody.find_all("tr")[:3]  # Primeiras 3 linhas como exemplo
-                print(f"\n📄 EXEMPLOS DE LINHAS:")
+                print("\n📄 EXEMPLOS DE LINHAS:")
 
                 for k, tr in enumerate(linhas, 1):
                     colunas = [td.text.strip() for td in tr.find_all("td")]
                     print(f"\n  Linha {k} ({len(colunas)} colunas):")
                     for j, col in enumerate(colunas, 1):
                         if j <= len(cabecalho):
-                            print(f"    {cabecalho[j-1]:<15}: {col}")
+                            print(f"    {cabecalho[j - 1]:<15}: {col}")
                         else:
                             print(f"    Coluna {j}: {col}")
 
@@ -72,16 +74,16 @@ def analisar_colunas_espn(url: str):
             }
             resultado["tabelas"].append(info_tabela)
 
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
 
         # Salva resultado em JSON
         with open('/home/romilson/Projetos/luizalabs/backend/fastapi_core/analise_colunas_espn.json', 'w', encoding='utf-8') as f:
             json.dump(resultado, f, ensure_ascii=False, indent=2)
 
-        print(f"\n✅ Análise completa! Resultado salvo em 'analise_colunas_espn.json'")
+        print("\n✅ Análise completa! Resultado salvo em 'analise_colunas_espn.json'")
 
         # Resumo final
-        print(f"\n📊 RESUMO DAS COLUNAS:")
+        print("\n📊 RESUMO DAS COLUNAS:")
         print(f"Tabelas encontradas: {len(tabelas)}")
 
         for tabela in resultado["tabelas"]:
@@ -95,15 +97,16 @@ def analisar_colunas_espn(url: str):
         print(f"❌ Erro: {e}")
         return None
 
+
 # Testa com o Vasco da Gama
 if __name__ == "__main__":
     url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
     resultado = analisar_colunas_espn(url)
 
     if resultado:
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("LISTA COMPLETA DE COLUNAS POR TIPO DE TABELA:")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         for tabela in resultado["tabelas"]:
             print(f"\n🔸 TABELA {tabela['numero']} - {tabela['tipo']}:")

@@ -1,8 +1,11 @@
+import re
+from typing import List
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
+
 from .schemas import AthleteScrapeResponse
-import re
+
 
 def scrape_espn_squad_v2(url: str) -> List[AthleteScrapeResponse]:
     """
@@ -213,11 +216,12 @@ def scrape_espn_squad_v2(url: str) -> List[AthleteScrapeResponse]:
         traceback.print_exc()
         raise Exception(f"Erro no scraping: {e}")
 
+
 # Exemplo de uso (para testes)
 if __name__ == "__main__":
     url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
     scraped_players = scrape_espn_squad_v2(url)
-    print(f"\n🏆 RESUMO FINAL:")
+    print("\n🏆 RESUMO FINAL:")
     print(f"Total de jogadores: {len(scraped_players)}")
 
     goleiros = [p for p in scraped_players if p.position == 'G']

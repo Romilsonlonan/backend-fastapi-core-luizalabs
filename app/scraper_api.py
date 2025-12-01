@@ -1,14 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends
+from datetime import datetime
+from typing import Any, Dict, List
+
+import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models import Atleta, Clube
-from app.schemas import AtletaCreate, AtletaResponse
 from app.scraper_altura_peso import scraper_espn_altura_peso
-from datetime import datetime
-import pandas as pd
-from typing import List, Dict, Any
 
 router = APIRouter(prefix="/api/scraper", tags=["scraper"])
+
 
 def processar_dados_atletas(df: pd.DataFrame, clube_id: int, tipo: str) -> List[Dict[str, Any]]:
     """
@@ -58,6 +60,7 @@ def processar_dados_atletas(df: pd.DataFrame, clube_id: int, tipo: str) -> List[
         atletas.append(atleta)
 
     return atletas
+
 
 @router.post("/atualizar-atletas/{clube_id}")
 async def atualizar_atletas(clube_id: int, db: Session = Depends(get_db)):
@@ -123,6 +126,7 @@ async def atualizar_atletas(clube_id: int, db: Session = Depends(get_db)):
         print(f"❌ Erro ao atualizar atletas: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar atletas: {str(e)}")
 
+
 @router.get("/status/{clube_id}")
 async def verificar_status_atualizacao(clube_id: int, db: Session = Depends(get_db)):
     """
@@ -151,6 +155,7 @@ async def verificar_status_atualizacao(clube_id: int, db: Session = Depends(get_
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao verificar status: {str(e)}")
+
 
 @router.get("/atletas/{clube_id}")
 async def listar_atletas_por_clube(clube_id: int, db: Session = Depends(get_db)):

@@ -1,15 +1,23 @@
-from datetime import timedelta, date
+import os
+from datetime import date, timedelta
 from typing import Annotated, List, Optional
+
+import requests  # Importar requests separadamente
 from fastapi import (
-    Depends, FastAPI, HTTPException, status, File, Form, UploadFile
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    staticfiles,
+    status,
 )
-import requests # Importar requests separadamente
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi import staticfiles
 from sqlalchemy.orm import Session
-import os
-from . import crud, models, schemas, scraper
+
+from . import crud, models, schemas
 from .config import settings
 from .database import SessionLocal, engine
 from .security import (
@@ -33,21 +41,13 @@ app = FastAPI()
 
 # 🛠️ **Correções Aplicadas:**
 
-### **1. Backend - CORS Melhorado**
+# **1. Backend - CORS Melhorado**
 
 # 🌐 Configuração CORS
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000", # Adicionado para o frontend React
-        "http://127.0.0.1:3000", # Adicionado para o frontend React (garantir compatibilidade)
-        "http://localhost:9000", # Adicionado para o frontend React
-        "http://localhost:9002", # Adicionado para o frontend React
-        "http://127.0.0.1:9002"  # Adicionado para o frontend React (garantir compatibilidade)
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -129,7 +129,7 @@ async def create_club(
     foundation_date: Optional[str] = Form(None),
     br_titles: Optional[int] = Form(0),
     training_center: Optional[str] = Form(None),
-    espn_url: Optional[str] = Form(None), # Adicionado
+    espn_url: Optional[str] = Form(None),  # Adicionado
     shield_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
@@ -142,7 +142,7 @@ async def create_club(
         else None,
         br_titles=br_titles,
         training_center=training_center,
-        espn_url=espn_url, # Adicionado
+        espn_url=espn_url,  # Adicionado
     )
     return crud.create_club(db=db, club=club_data, shield_file=shield_image)
 
@@ -162,13 +162,67 @@ def read_club(club_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/clubs/{club_id}", response_model=schemas.ClubResponse)
-def update_club(
+async def update_club(
     club_id: int,
-    club_update: schemas.ClubCreate,
+    name: Optional[str] = Form(None),
+    initials: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    foundation_date: Optional[str] = Form(None),
+    br_titles: Optional[int] = Form(None),
+    training_center: Optional[str] = Form(None),
+    espn_url: Optional[str] = Form(None),
+    shield_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    db_club = crud.update_club(db, club_id=club_id, club_update=club_update)
+    club_update_data = {
+        "name": name,
+        "initials": initials,
+        "city": city,
+        "br_titles": br_titles,
+        "training_center": training_center,
+        "espn_url": espn_url,
+    }
+
+    # Convert foundation_date string to date object if provided
+    if foundation_date:
+        club_update_data["foundation_date"] = date.fromisoformat(foundation_date)
+    else:
+        club_update_data["foundation_date"] = None # Explicitly set to None if empty string is sent
+
+    # Filter out None values to allow partial updates
+    club_update_data = {k: v for k, v in club_update_data.items() if v is not None}
+
+    # Handle shield_image separately if provided
+    shield_url = None
+    if shield_image:
+        # Validações de segurança (similar ao create_club)
+        if not shield_image.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Apenas imagens são permitidas")
+        if shield_image.size > 5 * 1024 * 1024:  # 5MB limite
+            raise HTTPException(status_code=400, detail="Imagem muito grande (máximo 5MB)")
+
+        file_ext = os.path.splitext(shield_image.filename)[1]
+        file_name = f"shield_{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIRECTORY, file_name)
+
+        try:
+            with open(file_path, "wb") as buffer:
+                content = await shield_image.read()
+                buffer.write(content)
+            shield_url = f"/{UPLOAD_DIRECTORY}/{file_name}"
+            club_update_data["shield_image_url"] = shield_url
+        except Exception:
+            raise HTTPException(status_code=500, detail="Erro ao salvar imagem do escudo")
+    
+    # If shield_image is explicitly sent as an empty string (e.g., to clear it), set URL to None
+    # This logic might need refinement based on how the frontend sends "clear image" signal
+    # For now, if shield_image is None and no new file is uploaded, existing URL remains
+    # If frontend sends a specific signal to clear, we'd handle it here.
+
+    club_update_schema = schemas.ClubCreate(**club_update_data) # Use ClubCreate for validation
+
+    db_club = crud.update_club(db, club_id=club_id, club_update=club_update_schema)
     if db_club is None:
         raise HTTPException(status_code=404, detail="Clube não encontrado")
     return db_club
@@ -178,6 +232,7 @@ def update_club(
 # 🕸️ Rotas de Web Scraping - VERSÃO CORRIGIDA
 # =====================================================
 from .scraper_service import ESPNScraperService
+
 
 @app.post("/clubs/{club_id}/scrape_players", response_model=List[schemas.PlayerResponse])
 async def scrape_players_for_club_endpoint(
@@ -222,6 +277,68 @@ async def scrape_players_for_club_endpoint(
 
 
 # =====================================================
+# 🗓️ Rotas de Rotinas de Treinamento
+# =====================================================
+@app.post("/training_routines/", response_model=schemas.TrainingRoutineResponse)
+def create_training_routine(
+    routine: schemas.TrainingRoutineCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    try:
+        return crud.create_training_routine(db=db, routine=routine)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/training_routines/", response_model=List[schemas.TrainingRoutineResponse])
+def read_training_routines(
+    skip: int = 0,
+    limit: int = 100,
+    club_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    routines = crud.get_training_routines(db, skip=skip, limit=limit, club_id=club_id)
+    return routines
+
+
+@app.get("/training_routines/{routine_id}", response_model=schemas.TrainingRoutineResponse)
+def read_training_routine(
+    routine_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_routine = crud.get_training_routine(db, routine_id=routine_id)
+    if db_routine is None:
+        raise HTTPException(status_code=404, detail="Rotina de treinamento não encontrada")
+    return db_routine
+
+
+@app.put("/training_routines/{routine_id}", response_model=schemas.TrainingRoutineResponse)
+def update_training_routine(
+    routine_id: int,
+    routine: schemas.TrainingRoutineUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_routine = crud.update_training_routine(db, routine_id=routine_id, routine_update=routine)
+    if db_routine is None:
+        raise HTTPException(status_code=404, detail="Rotina de treinamento não encontrada")
+    return db_routine
+
+
+@app.delete("/training_routines/{routine_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_training_routine(
+    routine_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    if not crud.delete_training_routine(db, routine_id=routine_id):
+        raise HTTPException(status_code=404, detail="Rotina de treinamento não encontrada")
+
+
+# =====================================================
 # 🧍 Rotas de Jogadores
 # =====================================================
 @app.post("/players/", response_model=schemas.PlayerResponse)
@@ -241,10 +358,11 @@ def read_players(
     skip: int = 0,
     limit: int = 100,
     club_id: Optional[int] = None,
+    name: Optional[str] = None,  # Adicione esta linha
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    players = crud.get_players(db, skip=skip, limit=limit, club_id=club_id)
+    players = crud.get_players(db, skip=skip, limit=limit, club_id=club_id, name=name)  # Adicione name=name
     return players
 
 
@@ -281,7 +399,6 @@ def delete_player(
 ):
     if not crud.delete_player(db, player_id=player_id):
         raise HTTPException(status_code=404, detail="Jogador não encontrado")
-    return
 
 
 # =====================================================
@@ -368,7 +485,6 @@ async def delete_user_account(
 ):
     if not crud.delete_user(db, current_user.id):
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    return
 
 
 @app.post("/users/me/photo", response_model=schemas.User)
@@ -388,7 +504,7 @@ async def upload_profile_image(
     with open(file_location, "wb+") as file_object:
         file_object.write(await file.read())
 
-    image_url = f"http://localhost:8000/{UPLOAD_DIRECTORY}/{current_user.id}{file_extension}" # Assuming backend runs on 8000
+    image_url = f"http://localhost:8000/{UPLOAD_DIRECTORY}/{current_user.id}{file_extension}"  # Assuming backend runs on 8000
 
     db_user = crud.update_user_profile_image(db, current_user.id, image_url)
     if not db_user:

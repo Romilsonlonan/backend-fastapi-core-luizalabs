@@ -1,9 +1,11 @@
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
 from datetime import datetime
 
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -13,6 +15,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     profile_image_url = Column(String, nullable=True)
+
 
 class Club(Base):
     __tablename__ = 'clubs'
@@ -29,6 +32,7 @@ class Club(Base):
 
     # Relacionamento com elenco
     players = relationship("Player", back_populates="club")
+
 
 class Player(Base):
     __tablename__ = 'players'

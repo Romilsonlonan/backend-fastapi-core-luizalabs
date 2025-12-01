@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -12,6 +13,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     profile_image_url = Column(String, nullable=True)
+
 
 class Club(Base):
     __tablename__ = 'clubs'
@@ -23,18 +25,19 @@ class Club(Base):
     shield_image_url = Column(String, nullable=True)
     foundation_date = Column(Date, nullable=True)
     br_titles = Column(Integer, default=0)
-    training_center = Column(String, nullable=True) # Adicionado para centro de treinamento
+    training_center = Column(String, nullable=True)  # Adicionado para centro de treinamento
     espn_url = Column(String, nullable=True)  # ➕ Adiciona campo para URL do ESPN
 
     # Relacionamento com elenco
     players = relationship("Player", back_populates="club")
+
 
 class Player(Base):
     __tablename__ = 'players'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    jersey_number = Column(Integer, default=0) # Nova coluna para número da camisa
+    jersey_number = Column(Integer, default=0)  # Nova coluna para número da camisa
     position = Column(String, index=True)
     age = Column(Integer, default=0)
     height = Column(Float, default=0.0)  # ALT em metros
@@ -46,8 +49,8 @@ class Player(Base):
     # Estatísticas de ataque (jogadores de campo)
     goals = Column(Integer, default=0)           # G
     assists = Column(Integer, default=0)         # A
-    shots = Column(Integer, default=0)           # TC (tentativas de cruzamento)
-    shots_on_goal = Column(Integer, default=0)   # CG (cruzamentos certos)
+    shots = Column(Integer, default=0)           # TC (chutes/finalizações)
+    shots_on_goal = Column(Integer, default=0)   # CG (chutes a gol)
 
     # Estatísticas de defesa
     fouls_committed = Column(Integer, default=0)  # FC
@@ -55,7 +58,7 @@ class Player(Base):
 
     # Estatísticas de goleiro
     defenses = Column(Integer, default=0)         # DGS
-    goals_conceded = Column(Integer, default=0) # AFC (usado como gols sofridos)
+    goals_conceded = Column(Integer, default=0)  # AFC (usado como gols sofridos)
 
     # Cartões
     yellow_cards = Column(Integer, default=0)  # CA
@@ -64,3 +67,20 @@ class Player(Base):
     # Chave estrangeira para o clube
     club_id = Column(Integer, ForeignKey('clubs.id'))
     club = relationship("Club", back_populates="players")
+
+
+class TrainingRoutine(Base):
+    __tablename__ = 'training_routines'
+
+    id = Column(Integer, primary_key=True, index=True)
+    club_id = Column(Integer, ForeignKey('clubs.id'))
+    day_of_week = Column(String, index=True)  # Ex: "Segunda-feira", "Terça-feira"
+    time = Column(String)  # Ex: "07:00", "09:00-11:00"
+    activity = Column(String)
+    description = Column(String, nullable=True)
+
+    club = relationship("Club", back_populates="training_routines")
+
+
+# Adicionar relacionamento em Club para TrainingRoutine
+Club.training_routines = relationship("TrainingRoutine", back_populates="club")

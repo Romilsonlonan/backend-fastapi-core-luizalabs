@@ -1,116 +1,85 @@
-# CBF Manager - Backend
+# 📋 Projeto em Desenvolvimento - CBF Manager
 
-API REST desenvolvida com FastAPI para gerenciamento de operações da Confederação Brasileira de Futebol.
+O **CBF Manager** é um sistema completo de gerenciamento de atletas dos clubes brasileiros da Série A, desenvolvido para a Confederação Brasileira de Futebol.
 
-## Tecnologias
+## 🏗️ Arquitetura
 
+<div align="center">
+
+| Componente | Tecnologia |
+|------------|------------|
+| **Backend** | API REST em FastAPI (Python 3.12) |
+| **Frontend** | Aplicação web em Next.js 15 com TypeScript |
+| **Banco de Dados** | SQLite com SQLAlchemy ORM |
+
+</div>
+
+---
+
+## 🔧 Funcionalidades Implementadas
+
+### Backend (FastAPI)
+
+- 🔐 **Autenticação JWT** - Sistema de login com tokens seguros
+- 👥 **Gestão de Usuários** - Registro e autenticação de administradores  
+- ⚽ **Gestão de Clubes** - CRUD completo com informações detalhadas
+- 🏃 **Gestão de Jogadores** - Cadastro com estatísticas completas (gols, assistências, cartões, etc.)
+- 🏢 **Centros de Treinamento** - Gerenciamento de CTs dos clubes
+- 📅 **Rotinas de Treino** - Organização de treinos por dia/hora
+- 🕷️ **Web Scraping** - Integração com ESPN para coleta de dados de jogadores
+
+### Frontend (Next.js)
+
+- 📊 **Dashboard Principal** - Interface administrativa intuitiva
+- 🏟️ **Gestão de Clubes** - Visualização e cadastro de times
+- 👤 **Gestão de Jogadores** - Lista detalhada com estatísticas
+- 🏢 **Centros de Treinamento** - Exibição filtrada dos CTs
+- 📸 **Upload de Imagens** - Sistema de upload de escudos e fotos de perfil
+- 📱 **Interface Responsiva** - Design moderno com Tailwind CSS e Radix UI
+
+---
+
+## 📊 Modelos de Dados Principais 
+
+```plaintext
+👤 Usuários: Sistema de autenticação
+⚽ Clubes: Nome, sigla, cidade, escudo, data de fundação, títulos, CT
+🏃 Jogadores: Dados pessoais, posição, estatísticas detalhadas, relacionamento com clube
+📅 Rotinas de Treino: Horários e atividades por clube
+```
+
+
+---
+
+## 🚀 Tecnologias Utilizadas
+
+### Backend
 - **FastAPI** - Framework web de alta performance
 - **SQLAlchemy** - ORM para banco de dados
 - **Alembic** - Migração de banco de dados
-- **Pydantic** - Validação de dados
 - **JWT** - Autenticação baseada em tokens
-- **Passlib** - Hash de senhas com bcrypt
+- **Pydantic** - Validação de dados
 - **Poetry** - Gerenciamento de dependências
 
-## Instalação
+### Frontend
+- **Next.js 15** - Framework React com renderização híbrida
+- **TypeScript** - Tipagem estática
+- **Tailwind CSS** - Framework de estilização
+- **Radix UI** - Componentes acessíveis
+- **React Hook Form** - Gerenciamento de formulários
+- **Recharts** - Gráficos e visualizações
 
-### Pré-requisitos
+### Infraestrutura
+- **Docker / Kubernetes** - Containerização e orquestração
 
-- Python 3.12
-- Poetry
+### Segurança
+- 🔒 **Bcrypt** para senhas
+- 🛡️ **CORS** configurado
+- ✅ **Validação de dados** com Pydantic
 
-### Instalar Dependências
+---
 
-```bash
-cd backend/fastapi_core
-poetry install
-```
+## 🎯 Objetivo
 
-## Executar em Desenvolvimento
+O sistema está sendo desenvolvido para gerenciar clubes brasileiros, seus jogadores e infraestrutura de treinamento, com foco em estatísticas detalhadas e organização administrativa.
 
-```bash
-# Usando taskipy
-task run
-
-# Ou diretamente com uvicorn
-poetry run uvicorn app.app:app --reload --host 0.0.0.0 --port 8000
-```
-
-A API estará disponível em `http://localhost:8000`
-
-## Documentação da API
-
-- **Swagger UI:** http://localhost:8000/docs
-- **ReDoc:** http://localhost:8000/redoc
-
-## Testes
-
-```bash
-# Executar testes
-task test
-
-# Apenas linting
-task lint
-
-# Formatar código
-task format
-```
-
-## Estrutura do Projeto
-
-```
-app/
-├── app.py          # Aplicação principal e rotas
-├── config.py       # Configurações e variáveis de ambiente
-├── database.py     # Configuração do banco de dados
-├── models.py       # Modelos SQLAlchemy
-├── schemas.py      # Schemas Pydantic
-├── crud.py         # Operações de banco de dados
-└── security.py     # Autenticação e segurança
-```
-
-## Variáveis de Ambiente
-
-Crie um arquivo `.env` baseado no `ienv.exemple`:
-
-```env
-DATABASE_URL=sqlite:///./sql_app.db
-SECRET_KEY=sua-chave-secreta-super-segura-aqui
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-ADMIN_EMAIL=admin@cbfmanager.com
-ADMIN_PASSWORD=sua-senha-admin-super-segura-aqui
-ADMIN_NAME=Administrador CBF
-CORS_ORIGINS_RAW=http://localhost:8000,http://localhost:9002
-```
-
-## Credenciais Padrão
-
-⚠️ **Importante:** As credenciais padrão foram removidas da documentação por motivos de segurança. Consulte o arquivo `.env` para as variáveis de ambiente necessárias e defina senhas fortes e únicas para produção.
-
-## Endpoints Principais
-
-### Autenticação
-- `POST /token` - Login e obtenção de token JWT
-- `POST /register` - Registro de novo usuário
-- `GET /users/me` - Dados do usuário autenticado
-
-### Clubes
-- `GET /clubs/` - Listar clubes
-- `POST /clubs/` - Criar clube
-- `GET /clubs/{id}` - Detalhes do clube
-
-### Jogadores
-- `GET /players/` - Listar jogadores
-- `POST /players/` - Criar jogador
-- `GET /players/{id}` - Detalhes do jogador
-- `PUT /players/{id}` - Atualizar jogador
-- `DELETE /players/{id}` - Excluir jogador
-
-## Segurança
-
-- Senhas com hash bcrypt
-- Autenticação JWT com expiração
-- CORS configurado
-- Validação de dados com Pydantic
-- Proteção de rotas sensíveis

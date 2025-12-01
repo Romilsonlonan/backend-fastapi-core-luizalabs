@@ -1,9 +1,12 @@
+import re
+from typing import Dict, List, Tuple
+
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
-from typing import List, Dict, Tuple
-from . import models, schemas, crud
-import re
+
+from . import crud, models, schemas
+
 
 class ESPNScraperService:
     """
@@ -58,7 +61,7 @@ class ESPNScraperService:
             name = match.group(1).strip()
             number = int(match.group(2))
             return name, number
-        return name_text.strip(), 0 # Retorna 0 se nenhum número for encontrado
+        return name_text.strip(), 0  # Retorna 0 se nenhum número for encontrado
 
     def _extract_player_data(self, row, is_goalkeeper: bool = False) -> Dict:
         """Extrai dados de uma linha da tabela usando as colunas reais do scraping."""
@@ -79,7 +82,7 @@ class ESPNScraperService:
         games_col_idx = 6
         sub_appearances_col_idx = 7
 
-        if len(cols) < (sub_appearances_col_idx + 1): # Mínimo de colunas comuns
+        if len(cols) < (sub_appearances_col_idx + 1):  # Mínimo de colunas comuns
             print(f"DEBUG: _extract_player_data - Not enough common columns ({len(cols)}), skipping row.")
             return None
 
@@ -195,38 +198,38 @@ class ESPNScraperService:
             print(f"DEBUG: Encontradas {len(tables)} tabelas com class='Table'.")
 
             for i, table in enumerate(tables):
-                print(f"\nDEBUG: --- Processando Tabela {i+1} ---")
+                print(f"\nDEBUG: --- Processando Tabela {i + 1} ---")
                 thead = table.find('thead')
                 if not thead:
-                    print(f"DEBUG: Thead não encontrado na Tabela {i+1}, pulando.")
+                    print(f"DEBUG: Thead não encontrado na Tabela {i + 1}, pulando.")
                     continue
 
                 headers = [th.get_text(strip=True) for th in thead.find_all('th')]
-                print(f"DEBUG: Cabeçalhos da Tabela {i+1}: {headers}")
+                print(f"DEBUG: Cabeçalhos da Tabela {i + 1}: {headers}")
 
                 is_goalkeeper_table = False
                 # Heurística para identificar o tipo de tabela pelos cabeçalhos
-                if 'D' in headers and 'GS' in headers: # Defesas e Gols Sofridos são típicos de goleiros
+                if 'D' in headers and 'GS' in headers:  # Defesas e Gols Sofridos são típicos de goleiros
                     is_goalkeeper_table = True
-                    print(f"DEBUG: Tabela {i+1} identificada como GOLEIROS pelos cabeçalhos.")
-                elif 'G' in headers and 'A' in headers and 'TC' in headers: # Gols, Assistências, Tentativas de Cruzamento são típicos de jogadores de campo
+                    print(f"DEBUG: Tabela {i + 1} identificada como GOLEIROS pelos cabeçalhos.")
+                elif 'G' in headers and 'A' in headers and 'TC' in headers:  # Gols, Assistências, Tentativas de Cruzamento são típicos de jogadores de campo
                     is_goalkeeper_table = False
-                    print(f"DEBUG: Tabela {i+1} identificada como JOGADORES DE CAMPO pelos cabeçalhos.")
+                    print(f"DEBUG: Tabela {i + 1} identificada como JOGADORES DE CAMPO pelos cabeçalhos.")
                 else:
-                    print(f"DEBUG: Não foi possível determinar o tipo da Tabela {i+1} pelos cabeçalhos, pulando.")
-                    continue # Pula tabelas que não podem ser identificadas
+                    print(f"DEBUG: Não foi possível determinar o tipo da Tabela {i + 1} pelos cabeçalhos, pulando.")
+                    continue  # Pula tabelas que não podem ser identificadas
 
                 tbody = table.find('tbody')
                 if not tbody:
-                    print(f"DEBUG: Tbody não encontrado na Tabela {i+1}, pulando.")
+                    print(f"DEBUG: Tbody não encontrado na Tabela {i + 1}, pulando.")
                     continue
 
                 rows = tbody.find_all('tr')
-                print(f"DEBUG: Encontradas {len(rows)} linhas na Tabela {i+1}.")
+                print(f"DEBUG: Encontradas {len(rows)} linhas na Tabela {i + 1}.")
 
                 for row in rows:
                     raw_cols_text = [td.get_text(strip=True) for td in row.find_all('td')]
-                    print(f"DEBUG: _extract_player_data - Raw columns (full text) for Tabela {i+1}: {raw_cols_text}")
+                    print(f"DEBUG: _extract_player_data - Raw columns (full text) for Tabela {i + 1}: {raw_cols_text}")
 
                     player_data = self._extract_player_data(row, is_goalkeeper=is_goalkeeper_table)
                     if player_data:

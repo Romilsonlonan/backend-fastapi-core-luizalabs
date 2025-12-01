@@ -1,7 +1,10 @@
+from typing import List
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
+
 from .schemas import AthleteScrapeResponse
+
 
 def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
     response = requests.get(url)
@@ -35,19 +38,19 @@ def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
             nationality = cols[6].text.strip()
             games = int(cols[7].text.strip()) if cols[7].text.strip().isdigit() else 0
             substitute_appearances = int(cols[8].text.strip()) if cols[8].text.strip().isdigit() else 0
-            defenses = int(cols[9].text.strip()) if cols[9].text.strip().isdigit() else 0 # D
-            goals_conceded = int(cols[10].text.strip()) if cols[10].text.strip().isdigit() else 0 # GS
-            assists = int(cols[11].text.strip()) if cols[11].text.strip().isdigit() else 0 # A
-            fouls_committed = int(cols[12].text.strip()) if cols[12].text.strip().isdigit() else 0 # FC
-            fouls_suffered = int(cols[13].text.strip()) if cols[13].text.strip().isdigit() else 0 # FS
-            yellow_cards = int(cols[14].text.strip()) if cols[14].text.strip().isdigit() else 0 # CA
-            red_cards = int(cols[15].text.strip()) if cols[15].text.strip().isdigit() else 0 # CV
+            defenses = int(cols[9].text.strip()) if cols[9].text.strip().isdigit() else 0  # D
+            goals_conceded = int(cols[10].text.strip()) if cols[10].text.strip().isdigit() else 0  # GS
+            assists = int(cols[11].text.strip()) if cols[11].text.strip().isdigit() else 0  # A
+            fouls_committed = int(cols[12].text.strip()) if cols[12].text.strip().isdigit() else 0  # FC
+            fouls_suffered = int(cols[13].text.strip()) if cols[13].text.strip().isdigit() else 0  # FS
+            yellow_cards = int(cols[14].text.strip()) if cols[14].text.strip().isdigit() else 0  # CA
+            red_cards = int(cols[15].text.strip()) if cols[15].text.strip().isdigit() else 0  # CV
 
             # Campos que não estão diretamente na tabela da ESPN ou precisam de lógica adicional
             # Para simplificar, vamos definir como 0 ou None por enquanto, ou buscar se possível.
             # O usuário não especificou como obter 'Gols', 'Finalizações', 'Chutes a gol', 'Lesões', 'Passes errados', 'Passes corretos', 'Salário'
             # A ESPN geralmente não mostra salário ou passes em tabelas de elenco.
-            goals = 0 # Gols totais, não goals_2025
+            goals = 0  # Gols totais, não goals_2025
             shots = 0
             shots_on_goal = 0
             salary = 0.0
@@ -85,6 +88,7 @@ def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
             continue
 
     return players_data
+
 
 # Exemplo de uso (para testes)
 if __name__ == "__main__":

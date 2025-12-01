@@ -1,9 +1,10 @@
+import re
+from typing import Dict, List
+
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import re
-import time
-from typing import List, Dict, Any, Optional
+
 
 class ESPNScraperFinal:
     """
@@ -179,7 +180,7 @@ class ESPNScraperFinal:
             }
 
             for i, tabela in enumerate(tabelas):
-                print(f"\n🔍 Analisando tabela {i+1}")
+                print(f"\n🔍 Analisando tabela {i + 1}")
 
                 # Captura o cabeçalho
                 cabecalho = [th.text.strip() for th in tabela.find_all('th')]
@@ -222,6 +223,7 @@ class ESPNScraperFinal:
             print(f"❌ Erro no scraping: {e}")
             return {"goleiros": pd.DataFrame(), "jogadores": pd.DataFrame()}
 
+
 def testar_scraper():
     """
     Função de teste do scraper
@@ -254,6 +256,7 @@ def testar_scraper():
     if not resultados["jogadores"].empty:
         print("\n🔸 JOGADORES DE CAMPO:")
         print(resultados["jogadores"].head(3))
+
 
 if __name__ == "__main__":
     testar_scraper()

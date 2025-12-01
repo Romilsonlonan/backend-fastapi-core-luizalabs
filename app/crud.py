@@ -1,9 +1,11 @@
-from sqlalchemy.orm import Session
-from . import models, schemas
-import uuid
 import os
-from fastapi import UploadFile, HTTPException
-from datetime import date
+import uuid
+
+from fastapi import HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from . import models, schemas
+
 
 def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile = None):
     shield_url = None
@@ -38,7 +40,7 @@ def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile =
         foundation_date=club.foundation_date,
         br_titles=club.br_titles or 0,
         training_center=club.training_center,
-        espn_url=club.espn_url # Adicionado
+        espn_url=club.espn_url  # Adicionado
     )
 
     db.add(db_club)
@@ -46,14 +48,18 @@ def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile =
     db.refresh(db_club)
     return db_club
 
+
 def get_clubs(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Club).offset(skip).limit(limit).all()
+
 
 def get_club(db: Session, club_id: int):
     return db.query(models.Club).filter(models.Club.id == club_id).first()
 
+
 def get_club_with_players(db: Session, club_id: int):
     return db.query(models.Club).filter(models.Club.id == club_id).first()
+
 
 def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate):
     db_club = db.query(models.Club).filter(models.Club.id == club_id).first()
@@ -64,6 +70,7 @@ def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate):
         db.commit()
         db.refresh(db_club)
     return db_club
+
 
 # Funções de Player
 def create_player(db: Session, player: schemas.PlayerCreate):
@@ -99,14 +106,19 @@ def create_player(db: Session, player: schemas.PlayerCreate):
     db.refresh(db_player)
     return db_player
 
-def get_players(db: Session, skip: int = 0, limit: int = 100, club_id: int = None):
+
+def get_players(db: Session, skip: int = 0, limit: int = 100, club_id: int = None, name: str = None):
     query = db.query(models.Player)
     if club_id:
         query = query.filter(models.Player.club_id == club_id)
+    if name:  # Adicione este filtro
+        query = query.filter(models.Player.name.ilike(f"%{name}%"))
     return query.offset(skip).limit(limit).all()
+
 
 def get_player(db: Session, player_id: int):
     return db.query(models.Player).filter(models.Player.id == player_id).first()
+
 
 def update_player(db: Session, player_id: int, player_update: schemas.PlayerUpdate):
     db_player = db.query(models.Player).filter(models.Player.id == player_id).first()
@@ -118,6 +130,7 @@ def update_player(db: Session, player_id: int, player_update: schemas.PlayerUpda
         db.refresh(db_player)
     return db_player
 
+
 def delete_player(db: Session, player_id: int):
     db_player = db.query(models.Player).filter(models.Player.id == player_id).first()
     if db_player:
@@ -126,15 +139,19 @@ def delete_player(db: Session, player_id: int):
         return True
     return False
 
+
 # Funções de User (mantidas)
 def get_user(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
 
+
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+
 def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.User).offset(skip).limit(limit).all()
+
 
 def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db_user = models.User(name=user.name, email=user.email, hashed_password=hashed_password)
@@ -143,6 +160,7 @@ def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db.refresh(db_user)
     return db_user
 
+
 def update_user_profile_image(db: Session, user_id: int, image_url: str):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
@@ -150,6 +168,7 @@ def update_user_profile_image(db: Session, user_id: int, image_url: str):
         db.commit()
         db.refresh(db_user)
     return db_user
+
 
 def update_user_profile(db: Session, user_id: int, user_update: schemas.UserBase):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -162,6 +181,7 @@ def update_user_profile(db: Session, user_id: int, user_update: schemas.UserBase
         db.refresh(db_user)
     return db_user
 
+
 def update_user_password(db: Session, user_id: int, hashed_password: str):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
@@ -170,6 +190,7 @@ def update_user_password(db: Session, user_id: int, hashed_password: str):
         db.refresh(db_user)
     return db_user
 
+
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
@@ -177,6 +198,7 @@ def delete_user(db: Session, user_id: int):
         db.commit()
         return True
     return False
+
 
 def create_admin_user_if_not_exists(db: Session, admin_email: str, admin_password: str, admin_name: str, get_password_hash_func):
     db_user = get_user_by_email(db, email=admin_email)
@@ -190,3 +212,54 @@ def create_admin_user_if_not_exists(db: Session, admin_email: str, admin_passwor
         return admin_user
     print(f"Usuário administrador '{admin_email}' já existe.")
     return db_user
+
+
+# Funções de TrainingRoutine
+def create_training_routine(db: Session, routine: schemas.TrainingRoutineCreate):
+    # Validar se o clube existe
+    club = db.query(models.Club).filter(models.Club.id == routine.club_id).first()
+    if not club:
+        raise ValueError(f"Clube com ID {routine.club_id} não encontrado")
+
+    db_routine = models.TrainingRoutine(
+        club_id=routine.club_id,
+        day_of_week=routine.day_of_week,
+        time=routine.time,
+        activity=routine.activity,
+        description=routine.description
+    )
+    db.add(db_routine)
+    db.commit()
+    db.refresh(db_routine)
+    return db_routine
+
+
+def get_training_routines(db: Session, skip: int = 0, limit: int = 100, club_id: int = None):
+    query = db.query(models.TrainingRoutine)
+    if club_id:
+        query = query.filter(models.TrainingRoutine.club_id == club_id)
+    return query.offset(skip).limit(limit).all()
+
+
+def get_training_routine(db: Session, routine_id: int):
+    return db.query(models.TrainingRoutine).filter(models.TrainingRoutine.id == routine_id).first()
+
+
+def update_training_routine(db: Session, routine_id: int, routine_update: schemas.TrainingRoutineUpdate):
+    db_routine = db.query(models.TrainingRoutine).filter(models.TrainingRoutine.id == routine_id).first()
+    if db_routine:
+        update_data = routine_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_routine, field, value)
+        db.commit()
+        db.refresh(db_routine)
+    return db_routine
+
+
+def delete_training_routine(db: Session, routine_id: int):
+    db_routine = db.query(models.TrainingRoutine).filter(models.TrainingRoutine.id == routine_id).first()
+    if db_routine:
+        db.delete(db_routine)
+        db.commit()
+        return True
+    return False

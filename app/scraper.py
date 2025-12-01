@@ -1,8 +1,11 @@
+import re
+from typing import List
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
+
 from .schemas import AthleteScrapeResponse
-import re
+
 
 def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
     """
@@ -206,6 +209,7 @@ def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
         import traceback
         traceback.print_exc()
         raise Exception(f"Erro no scraping: {e}")
+
 
 # Exemplo de uso (para testes)
 if __name__ == "__main__":

@@ -5,8 +5,9 @@ Uso: python add_club.py "Nome do Clube" "SIG" "Cidade" "YYYY-MM-DD" [titulos] [c
 """
 
 import sys
+
 import requests
-from datetime import date
+
 
 def add_club_to_database(name, initials, city, foundation_date, br_titles=0, training_center=None):
     """Adiciona um clube ao banco de dados via API"""
@@ -27,8 +28,8 @@ def add_club_to_database(name, initials, city, foundation_date, br_titles=0, tra
         login_response = requests.post(
             "http://localhost:8000/token",
             data={
-                "username": "admin@cbfmanager.com",
-                "password": "admin123"
+                "username": os.getenv("ADMIN_EMAIL"),
+                "password": os.getenv("ADMIN_PASSWORD")
             }
         )
 
@@ -70,6 +71,7 @@ def add_club_to_database(name, initials, city, foundation_date, br_titles=0, tra
         print(f"❌ Erro inesperado: {e}")
         return False
 
+
 def main():
     if len(sys.argv) < 4:
         print("❌ Uso incorreto!")
@@ -89,7 +91,7 @@ def main():
 
     print("🚀 Adicionando clube ao banco de dados...")
     print("=" * 50)
-    print(f"📋 Dados do clube:")
+    print("📋 Dados do clube:")
     print(f"   Nome: {name}")
     print(f"   Sigla: {initials}")
     print(f"   Cidade: {city}")
@@ -109,10 +111,11 @@ def main():
         print("4. Selecione o clube criado")
         print("5. Clique em 'Atualizar Atletas' para buscar os dados do ESPN")
         print(f"\n🔗 URL ESPN sugerida para {name}:")
-        print(f"   https://www.espn.com.br/futebol/time/_/id/XXXX/nome-do-clube")
+        print("   https://www.espn.com.br/futebol/time/_/id/XXXX/nome-do-clube")
         print("   (Substitua XXXX pelo ID do clube na ESPN)")
     else:
         print("\n❌ Falha ao adicionar clube!")
+
 
 if __name__ == "__main__":
     main()

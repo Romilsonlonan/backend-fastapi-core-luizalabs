@@ -1,7 +1,9 @@
+import re
+
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import re
+
 
 def scraper_espn_fixo(url: str):
     """
@@ -67,7 +69,7 @@ def scraper_espn_fixo(url: str):
         for i, tabela in enumerate(tabelas):
             # Pega cabeçalho
             cabecalho = [th.text.strip() for th in tabela.find_all('th')]
-            print(f"\n🔍 Tabela {i+1}: {len(cabecalho)} colunas")
+            print(f"\n🔍 Tabela {i + 1}: {len(cabecalho)} colunas")
 
             # Pega dados
             dados = []
@@ -157,6 +159,7 @@ def scraper_espn_fixo(url: str):
             "goleiros": pd.DataFrame(columns=COLUNAS_GOLEIROS),
             "jogadores": pd.DataFrame(columns=COLUNAS_JOGADORES)
         }
+
 
 # Teste
 if __name__ == "__main__":

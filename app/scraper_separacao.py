@@ -1,7 +1,9 @@
+import re
+
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import re
+
 
 def scraper_espn_separacao(url: str):
     """
@@ -66,7 +68,7 @@ def scraper_espn_separacao(url: str):
             return nome, numero
 
         # Se nenhuma estratégia funcionou: nome completo + número 0
-        print(f"    ⚠️  Nenhum número encontrado, usando '0'")
+        print("    ⚠️  Nenhum número encontrado, usando '0'")
         return texto, "0"
 
     def limpar_valor(valor, tipo="texto"):
@@ -100,7 +102,7 @@ def scraper_espn_separacao(url: str):
         for i, tabela in enumerate(tabelas):
             # Pega cabeçalho
             cabecalho = [th.text.strip() for th in tabela.find_all('th')]
-            print(f"\n🔍 Tabela {i+1}: {len(cabecalho)} colunas")
+            print(f"\n🔍 Tabela {i + 1}: {len(cabecalho)} colunas")
 
             # Pega dados
             dados = []
@@ -180,7 +182,7 @@ def scraper_espn_separacao(url: str):
         print(f"✅ JOGADORES: {len(df_jogadores)} registros")
 
         # Mostra exemplos de separação
-        print(f"\n📊 EXEMPLOS DE SEPARAÇÃO:")
+        print("\n📊 EXEMPLOS DE SEPARAÇÃO:")
         if not df_goleiros.empty:
             print("🔸 GOLEIROS:")
             for i, row in df_goleiros.head(5).iterrows():
@@ -202,6 +204,7 @@ def scraper_espn_separacao(url: str):
             "goleiros": pd.DataFrame(columns=COLUNAS_GOLEIROS),
             "jogadores": pd.DataFrame(columns=COLUNAS_JOGADORES)
         }
+
 
 # Teste
 if __name__ == "__main__":

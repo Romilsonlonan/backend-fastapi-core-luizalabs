@@ -1,7 +1,9 @@
+import re
+
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import re
+
 
 def scraper_espn_completo(url: str):
     """
@@ -80,7 +82,7 @@ def scraper_espn_completo(url: str):
         for i, tabela in enumerate(tabelas):
             # Pega cabeçalho
             cabecalho = [th.text.strip() for th in tabela.find_all('th')]
-            print(f"\n🔍 Tabela {i+1}: {len(cabecalho)} colunas")
+            print(f"\n🔍 Tabela {i + 1}: {len(cabecalho)} colunas")
 
             # Pega dados
             dados = []
@@ -161,13 +163,13 @@ def scraper_espn_completo(url: str):
         pd.set_option('display.width', None)        # Largura automática
         pd.set_option('display.max_colwidth', 20)   # Limita largura de cada coluna
 
-        print(f"\n📊 VISUALIZAÇÃO COMPLETA DOS DADOS:")
+        print("\n📊 VISUALIZAÇÃO COMPLETA DOS DADOS:")
 
         if not df_goleiros.empty:
             print(f"\n🔸 GOLEIROS COMPLETOS ({len(df_goleiros)} registros):")
             print(df_goleiros.to_string(index=False))
 
-            print(f"\n🔸 Estatísticas dos goleiros:")
+            print("\n🔸 Estatísticas dos goleiros:")
             print(f"   - Total: {len(df_goleiros)} jogadores")
             print(f"   - Posições únicas: {df_goleiros['POS'].unique()}")
             print(f"   - Nacionalidades únicas: {df_goleiros['NAC'].unique()}")
@@ -176,7 +178,7 @@ def scraper_espn_completo(url: str):
             print(f"\n🔸 JOGADORES DE CAMPO COMPLETOS ({len(df_jogadores)} registros):")
             print(df_jogadores.to_string(index=False))
 
-            print(f"\n🔸 Estatísticas dos jogadores:")
+            print("\n🔸 Estatísticas dos jogadores:")
             print(f"   - Total: {len(df_jogadores)} jogadores")
             print(f"   - Posições únicas: {df_jogadores['POS'].unique()}")
             print(f"   - Nacionalidades únicas: {df_jogadores['NAC'].unique()}")
@@ -193,6 +195,7 @@ def scraper_espn_completo(url: str):
             "jogadores": pd.DataFrame(columns=COLUNAS_JOGADORES)
         }
 
+
 # Teste
 if __name__ == "__main__":
     url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
@@ -201,8 +204,8 @@ if __name__ == "__main__":
     # Salva resultados
     if not resultados["goleiros"].empty:
         resultados["goleiros"].to_csv('/home/romilson/Projetos/luizalabs/backend/fastapi_core/goleiros_completo.csv', index=False, encoding='utf-8-sig')
-        print(f"\n💾 Goleiros salvos em: goleiros_completo.csv")
+        print("\n💾 Goleiros salvos em: goleiros_completo.csv")
 
     if not resultados["jogadores"].empty:
         resultados["jogadores"].to_csv('/home/romilson/Projetos/luizalabs/backend/fastapi_core/jogadores_completo.csv', index=False, encoding='utf-8-sig')
-        print(f"\n💾 Jogadores salvos em: jogadores_completo.csv")
+        print("\n💾 Jogadores salvos em: jogadores_completo.csv")

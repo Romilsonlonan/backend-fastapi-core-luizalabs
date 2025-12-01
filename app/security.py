@@ -9,11 +9,18 @@ from .config import settings
 
 # Usar bcrypt diretamente para evitar problemas do passlib
 def verify_password(plain_password, hashed_password):
+    print(f"Attempting to verify password for plain_password: {plain_password}")
+    print(f"Hashed password from DB: {hashed_password}")
     # Truncar senha para 72 bytes (limite do bcrypt)
-    plain_password = plain_password.encode('utf-8')[:72]
+    plain_password_encoded = plain_password.encode('utf-8')[:72]
     if isinstance(hashed_password, str):
-        hashed_password = hashed_password.encode('utf-8')
-    return bcrypt.checkpw(plain_password, hashed_password)
+        hashed_password_encoded = hashed_password.encode('utf-8')
+    else:
+        hashed_password_encoded = hashed_password
+    
+    result = bcrypt.checkpw(plain_password_encoded, hashed_password_encoded)
+    print(f"Password verification result: {result}")
+    return result
 
 
 def get_password_hash(password):

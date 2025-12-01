@@ -1,7 +1,9 @@
+import re
+
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import re
+
 
 def scraper_espn_altura_peso(url: str):
     """
@@ -96,7 +98,7 @@ def scraper_espn_altura_peso(url: str):
         for i, tabela in enumerate(tabelas):
             # Pega cabeçalho
             cabecalho = [th.text.strip() for th in tabela.find_all('th')]
-            print(f"\n🔍 Tabela {i+1}: {len(cabecalho)} colunas")
+            print(f"\n🔍 Tabela {i + 1}: {len(cabecalho)} colunas")
 
             # Pega dados
             dados = []
@@ -180,7 +182,7 @@ def scraper_espn_altura_peso(url: str):
         pd.set_option('display.width', None)
         pd.set_option('display.max_colwidth', 15)
 
-        print(f"\n📊 VISUALIZAÇÃO COMPLETA - TRATAMENTO ALTURA/PESO:")
+        print("\n📊 VISUALIZAÇÃO COMPLETA - TRATAMENTO ALTURA/PESO:")
 
         if not df_goleiros.empty:
             print(f"\n🔸 GOLEIROS COMPLETOS ({len(df_goleiros)} registros):")
@@ -189,7 +191,7 @@ def scraper_espn_altura_peso(url: str):
             # Verifica valores nulos em ALT e P
             alt_zeros = (df_goleiros['ALT'] == "0").sum()
             p_zeros = (df_goleiros['P'] == "0").sum()
-            print(f"\n📈 Estatísticas Altura/Peso Goleiros:")
+            print("\n📈 Estatísticas Altura/Peso Goleiros:")
             print(f"   - Altura = 0: {alt_zeros} jogadores")
             print(f"   - Peso = 0: {p_zeros} jogadores")
             print(f"   - Exemplos de valores ALT: {df_goleiros['ALT'].head().tolist()}")
@@ -202,7 +204,7 @@ def scraper_espn_altura_peso(url: str):
             # Verifica valores nulos em ALT e P
             alt_zeros = (df_jogadores['ALT'] == "0").sum()
             p_zeros = (df_jogadores['P'] == "0").sum()
-            print(f"\n📈 Estatísticas Altura/Peso Jogadores:")
+            print("\n📈 Estatísticas Altura/Peso Jogadores:")
             print(f"   - Altura = 0: {alt_zeros} jogadores")
             print(f"   - Peso = 0: {p_zeros} jogadores")
             print(f"   - Exemplos de valores ALT: {df_jogadores['ALT'].head().tolist()}")
@@ -220,6 +222,7 @@ def scraper_espn_altura_peso(url: str):
             "jogadores": pd.DataFrame(columns=COLUNAS_JOGADORES)
         }
 
+
 # Teste
 if __name__ == "__main__":
     url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
@@ -228,8 +231,8 @@ if __name__ == "__main__":
     # Salva resultados
     if not resultados["goleiros"].empty:
         resultados["goleiros"].to_csv('/home/romilson/Projetos/luizalabs/backend/fastapi_core/goleiros_altura_peso.csv', index=False, encoding='utf-8-sig')
-        print(f"\n💾 Goleiros salvos em: goleiros_altura_peso.csv")
+        print("\n💾 Goleiros salvos em: goleiros_altura_peso.csv")
 
     if not resultados["jogadores"].empty:
         resultados["jogadores"].to_csv('/home/romilson/Projetos/luizalabs/backend/fastapi_core/jogadores_altura_peso.csv', index=False, encoding='utf-8-sig')
-        print(f"\n💾 Jogadores salvos em: jogadores_altura_peso.csv")
+        print("\n💾 Jogadores salvos em: jogadores_altura_peso.csv")
