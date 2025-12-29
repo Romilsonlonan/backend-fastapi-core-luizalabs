@@ -4,8 +4,6 @@ from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
 
-from .config import settings
-
 
 # Usar bcrypt diretamente para evitar problemas do passlib
 def verify_password(plain_password, hashed_password):
@@ -31,6 +29,7 @@ def get_password_hash(password):
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    from .config import settings # Import settings locally to avoid circular dependency
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -44,6 +43,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 
 def decode_access_token(token: str):
+    from .config import settings # Import settings locally to avoid circular dependency
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload

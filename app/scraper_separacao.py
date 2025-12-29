@@ -208,7 +208,7 @@ def scraper_espn_separacao(url: str):
 
 # Teste
 if __name__ == "__main__":
-    url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
+    url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/liga/BRA.1/temporada/2025"
     resultados = scraper_espn_separacao(url)
 
     # Salva resultados

@@ -16,10 +16,14 @@ dependencies = [
     "sqlalchemy",
     "alembic",
     "pydantic[email]",
+    "pydantic-settings", # Added for BaseSettings
     "python-dotenv",
     "dotenv (>=0.9.9,<0.10.0)",
     "beautifulsoup4", # For web scraping
-    "requests" # For making HTTP requests
+    "requests", # For making HTTP requests
+    "pandera", # For data validation
+    "pandas", # For DataFrame operations with Pandera
+    "loguru (>=0.7.3,<0.8.0)"
 ]
 package-mode = false
 
@@ -44,12 +48,37 @@ dev = [
 
 [tool.taskipy.tasks]
 fast = 'poetry install --no-root ; poetry update'
-run = 'uvicorn app.app:app --reload --host 0.0.0.0 --port 8000'
+run = 'CORS_ORIGINS="http://localhost:8000,http://127.0.0.1:8000,http://localhost:9002,http://localhost:3000" uvicorn app.app:app --reload --host 0.0.0.0 --port 8000'
 pre_test = 'task lint'
 test = 'PYTHONPATH=. pytest -s -x --cov=fastapi_core -vv'
 post_test = 'coverage html'
 lint = 'ruff check . && ruff check . --diff'
 format = 'ruff check . --fix && ruff format .'
+
+# ALEMBIC ALIASES
+
+# Sincronizar Alembic com banco existente
+db-sincro = 'alembic stamp head'
+
+# Aplicar migrations pendentes
+db-upg = 'alembic upgrade head'
+
+# TASK COMPLETO: Criar migration e aplicar automaticamente
+db-upd = 'task db-migrate && task db-upgrade'
+
+# Ver versão atual
+db-v = 'alembic current'
+
+# Ver histórico de migrations
+db-hist = 'alembic history'
+
+# Resetar banco (apaga e recria)
+db-reset = 'rm app.db && alembic upgrade head'
+
+db-mig = 'alembic revision --autogenerate -m "Auto migration $(date +%Y%m%d_%H%M%S)"'
+
+# ⭐ Voltar uma migration (desfazer última alteração)
+db-down = 'alembic downgrade -1'
 
 #ruff check .
 #ruff format .

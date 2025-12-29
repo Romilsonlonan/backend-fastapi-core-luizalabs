@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -22,27 +22,110 @@ class User(UserBase):
         from_attributes = True
 
 
+class Goalkeeper(BaseModel):
+    name: str = Field(..., alias="Nome")
+    position: str = Field(..., alias="POS")
+    age: int = Field(..., alias="Idade")
+    height: Optional[float] = Field(None, alias="Alt")
+    weight: Optional[float] = Field(None, alias="P")
+    nationality: Optional[str] = Field(None, alias="NAC")
+    games: Optional[int] = Field(0, alias="J")
+    substitutions: Optional[int] = Field(0, alias="SUB")
+    saves: Optional[int] = Field(0, alias="D")
+    goals_conceded: Optional[int] = Field(0, alias="GS")
+    assists: Optional[int] = Field(0, alias="A")
+    fouls_committed: Optional[int] = Field(0, alias="FC")
+    fouls_suffered: Optional[int] = Field(0, alias="FS")
+    yellow_cards: Optional[int] = Field(0, alias="CA")
+    red_cards: Optional[int] = Field(0, alias="CV")
+
+    class Config:
+        from_attributes = True
+
+
+class GoalkeeperCreate(BaseModel):
+    name: str
+    position: str
+    age: int
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    nationality: Optional[str] = None
+    games: Optional[int] = 0
+    substitutions: Optional[int] = 0
+    saves: Optional[int] = 0
+    goals_conceded: Optional[int] = 0
+    assists: Optional[int] = 0
+    fouls_committed: Optional[int] = 0
+    fouls_suffered: Optional[int] = 0
+    yellow_cards: Optional[int] = 0
+    red_cards: Optional[int] = 0
+    club_id: int
+
+
+class FieldPlayer(BaseModel):
+    name: str = Field(..., alias="Nome")
+    position: str = Field(..., alias="POS")
+    age: int = Field(..., alias="Idade")
+    height: Optional[float] = Field(None, alias="Alt")
+    weight: Optional[float] = Field(None, alias="P")
+    nationality: Optional[str] = Field(None, alias="NAC")
+    games: Optional[int] = Field(0, alias="J")
+    substitutions: Optional[int] = Field(0, alias="SUB")
+    goals: Optional[int] = Field(0, alias="G")
+    assists: Optional[int] = Field(0, alias="A")
+    total_shots: Optional[int] = Field(0, alias="TC")
+    shots_on_goal: Optional[int] = Field(0, alias="CG")
+    fouls_committed: Optional[int] = Field(0, alias="FC")
+    fouls_suffered: Optional[int] = Field(0, alias="FS")
+    yellow_cards: Optional[int] = Field(0, alias="CA")
+    red_cards: Optional[int] = Field(0, alias="CV")
+
+    class Config:
+        from_attributes = True
+
+
+class FieldPlayerCreate(BaseModel):
+    name: str
+    position: str
+    age: int
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    nationality: Optional[str] = None
+    games: Optional[int] = 0
+    substitutions: Optional[int] = 0
+    goals: Optional[int] = 0
+    assists: Optional[int] = 0
+    total_shots: Optional[int] = 0
+    shots_on_goal: Optional[int] = 0
+    fouls_committed: Optional[int] = 0
+    fouls_suffered: Optional[int] = 0
+    yellow_cards: Optional[int] = 0
+    red_cards: Optional[int] = 0
+    club_id: int
+
+
 class AthleteScrapeResponse(BaseModel):
     """Schema para dados vindos do web scraping"""
     name: str
-    jersey_number: Optional[int] = 0  # Adicionado
+    jersey_number: Optional[int] = Field(0, alias="jerseyNumber")
     position: str
     age: int
     height: Optional[float] = 0.0
     weight: Optional[float] = 0.0
     nationality: Optional[str] = None
     games: Optional[int] = 0
-    substitute_appearances: Optional[int] = 0
+    substitutions: Optional[int] = Field(0, alias="substitutions")
     goals: Optional[int] = 0
     assists: Optional[int] = 0
-    shots: Optional[int] = 0  # TC (chutes/finalizações)
-    shots_on_goal: Optional[int] = 0  # CG (chutes a gol)
-    fouls_committed: Optional[int] = 0
-    fouls_suffered: Optional[int] = 0
-    yellow_cards: Optional[int] = 0
-    red_cards: Optional[int] = 0
-    defenses: Optional[int] = 0
-    goals_conceded: Optional[int] = 0
+    tackles: Optional[int] = Field(0, alias="tackles")
+    chances_created: Optional[int] = Field(0, alias="chancesCreated")
+    fouls_committed: Optional[int] = Field(0, alias="foulsCommitted")
+    fouls_suffered: Optional[int] = Field(0, alias="foulsSuffered")
+    yellow_cards: Optional[int] = Field(0, alias="yellowCards")
+    red_cards: Optional[int] = Field(0, alias="redCards")
+    saves: Optional[int] = Field(0, alias="saves")
+    goals_conceded: Optional[int] = Field(0, alias="goalsConceded")
+    clean_sheets: Optional[int] = Field(0, alias="cleanSheets")
 
     class Config:
         from_attributes = True
@@ -84,6 +167,53 @@ class ClubSimpleResponse(BaseModel):
         from_attributes = True
 
 
+class GoalkeeperResponse(BaseModel):
+    id: int
+    name: str
+    position: str
+    age: int
+    height: Optional[float]
+    weight: Optional[float]
+    nationality: Optional[str]
+    games: Optional[int]
+    substitutions: Optional[int]
+    saves: Optional[int]
+    goals_conceded: Optional[int]
+    assists: Optional[int]
+    fouls_committed: Optional[int]
+    fouls_suffered: Optional[int]
+    yellow_cards: Optional[int]
+    red_cards: Optional[int]
+    club_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class FieldPlayerResponse(BaseModel):
+    id: int
+    name: str
+    position: str
+    age: int
+    height: Optional[float]
+    weight: Optional[float]
+    nationality: Optional[str]
+    games: Optional[int]
+    substitutions: Optional[int]
+    goals: Optional[int]
+    assists: Optional[int]
+    total_shots: Optional[int]
+    shots_on_goal: Optional[int]
+    fouls_committed: Optional[int]
+    fouls_suffered: Optional[int]
+    yellow_cards: Optional[int]
+    red_cards: Optional[int]
+    club_id: int
+
+    class Config:
+        from_attributes = True
+
+
 class ClubResponse(BaseModel):
     id: int
     name: str
@@ -93,9 +223,10 @@ class ClubResponse(BaseModel):
     foundation_date: Optional[date]
     br_titles: int
     training_center: Optional[str]
-    espn_url: Optional[str]  # ➕ Adiciona campo para URL do ESPN
-    players: List["PlayerSimpleResponse"] = []
-    training_routines: List["TrainingRoutineResponse"] = []  # Adicionado
+    espn_url: Optional[str]
+    goalkeepers: List[GoalkeeperResponse] = []
+    field_players: List[FieldPlayerResponse] = []
+    training_routines: List["TrainingRoutineResponse"] = []
 
     class Config:
         from_attributes = True
@@ -122,108 +253,6 @@ class TrainingRoutineUpdate(BaseModel):
 
 class TrainingRoutineResponse(TrainingRoutineBase):
     id: int
-
-    class Config:
-        from_attributes = True
-
-
-class PlayerCreate(BaseModel):
-    name: str
-    jersey_number: Optional[int] = 0  # Adicionado
-    position: str
-    age: int
-    club_id: int
-    height: Optional[float] = 0.0
-    weight: Optional[float] = 0.0
-    nationality: Optional[str] = None
-    games: Optional[int] = 0
-    substitute_appearances: Optional[int] = 0
-    goals: Optional[int] = 0
-    assists: Optional[int] = 0
-    shots: Optional[int] = 0  # TC (chutes/finalizações)
-    shots_on_goal: Optional[int] = 0  # CG (chutes a gol)
-    fouls_committed: Optional[int] = 0
-    fouls_suffered: Optional[int] = 0
-    yellow_cards: Optional[int] = 0
-    red_cards: Optional[int] = 0
-    defenses: Optional[int] = 0
-    goals_conceded: Optional[int] = 0
-
-
-class PlayerUpdate(BaseModel):
-    name: Optional[str] = None
-    jersey_number: Optional[int] = None  # Adicionado
-    position: Optional[str] = None
-    age: Optional[int] = None
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    nationality: Optional[str] = None
-    games: Optional[int] = None
-    substitute_appearances: Optional[int] = None
-    goals: Optional[int] = None
-    assists: Optional[int] = None
-    shots: Optional[int] = None  # TC (chutes/finalizações)
-    shots_on_goal: Optional[int] = None  # CG (chutes a gol)
-    fouls_committed: Optional[int] = None
-    fouls_suffered: Optional[int] = None
-    yellow_cards: Optional[int] = None
-    red_cards: Optional[int] = None
-    defenses: Optional[int] = None
-    goals_conceded: Optional[int] = None
-    club_id: Optional[int] = None
-
-
-class PlayerSimpleResponse(BaseModel):
-    """Schema simplificado para jogador usado dentro de ClubResponse"""
-    id: int
-    name: str
-    jersey_number: Optional[int]  # Adicionado
-    position: str
-    age: int
-    height: Optional[float]
-    weight: Optional[float]
-    nationality: Optional[str]
-    games: Optional[int]
-    substitute_appearances: Optional[int]
-    goals: Optional[int]
-    assists: Optional[int]
-    shots: Optional[int]  # TC (chutes/finalizações)
-    shots_on_goal: Optional[int]  # CG (chutes a gol)
-    fouls_committed: Optional[int]
-    fouls_suffered: Optional[int]
-    yellow_cards: Optional[int]
-    red_cards: Optional[int]
-    defenses: Optional[int]
-    goals_conceded: Optional[int]
-    club_id: int
-
-    class Config:
-        from_attributes = True
-
-
-class PlayerResponse(BaseModel):
-    id: int
-    name: str
-    jersey_number: Optional[int]  # Adicionado
-    position: str
-    age: int
-    height: Optional[float]
-    weight: Optional[float]
-    nationality: Optional[str]
-    games: Optional[int]
-    substitute_appearances: Optional[int]
-    goals: Optional[int]
-    assists: Optional[int]
-    shots: Optional[int]  # TC (chutes/finalizações)
-    shots_on_goal: Optional[int]  # CG (chutes a gol)
-    fouls_committed: Optional[int]
-    fouls_suffered: Optional[int]
-    yellow_cards: Optional[int]
-    red_cards: Optional[int]
-    defenses: Optional[int]
-    goals_conceded: Optional[int]
-    club_id: int
-    club: Optional[ClubSimpleResponse] = None
 
     class Config:
         from_attributes = True

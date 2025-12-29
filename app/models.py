@@ -28,45 +28,57 @@ class Club(Base):
     training_center = Column(String, nullable=True)  # Adicionado para centro de treinamento
     espn_url = Column(String, nullable=True)  # ➕ Adiciona campo para URL do ESPN
 
-    # Relacionamento com elenco
-    players = relationship("Player", back_populates="club")
+    goalkeepers = relationship("Goalkeeper", back_populates="club")
+    field_players = relationship("FieldPlayer", back_populates="club")
 
 
-class Player(Base):
-    __tablename__ = 'players'
+class Goalkeeper(Base):
+    __tablename__ = 'goalkeepers'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    jersey_number = Column(Integer, default=0)  # Nova coluna para número da camisa
+    position = Column(String, default="Goleiro")
+    age = Column(Integer, default=0)
+    height = Column(Float, nullable=True)
+    weight = Column(Float, nullable=True)
+    nationality = Column(String, nullable=True)
+    games = Column(Integer, default=0)
+    substitutions = Column(Integer, default=0)
+    saves = Column(Integer, default=0)
+    goals_conceded = Column(Integer, default=0)
+    assists = Column(Integer, default=0)
+    fouls_committed = Column(Integer, default=0)
+    fouls_suffered = Column(Integer, default=0)
+    yellow_cards = Column(Integer, default=0)
+    red_cards = Column(Integer, default=0)
+
+    club_id = Column(Integer, ForeignKey('clubs.id'))
+    club = relationship("Club", back_populates="goalkeepers")
+
+
+class FieldPlayer(Base):
+    __tablename__ = 'field_players'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
     position = Column(String, index=True)
     age = Column(Integer, default=0)
-    height = Column(Float, default=0.0)  # ALT em metros
-    weight = Column(Float, default=0.0)   # P em kg
-    nationality = Column(String, nullable=True)  # NAC
-    games = Column(Integer, default=0)  # J
-    substitute_appearances = Column(Integer, default=0)  # SUB
+    height = Column(Float, nullable=True)
+    weight = Column(Float, nullable=True)
+    nationality = Column(String, nullable=True)
+    games = Column(Integer, default=0)
+    substitutions = Column(Integer, default=0)
+    goals = Column(Integer, default=0)
+    assists = Column(Integer, default=0)
+    total_shots = Column(Integer, default=0)
+    shots_on_goal = Column(Integer, default=0)
+    fouls_committed = Column(Integer, default=0)
+    fouls_suffered = Column(Integer, default=0)
+    yellow_cards = Column(Integer, default=0)
+    red_cards = Column(Integer, default=0)
 
-    # Estatísticas de ataque (jogadores de campo)
-    goals = Column(Integer, default=0)           # G
-    assists = Column(Integer, default=0)         # A
-    shots = Column(Integer, default=0)           # TC (chutes/finalizações)
-    shots_on_goal = Column(Integer, default=0)   # CG (chutes a gol)
-
-    # Estatísticas de defesa
-    fouls_committed = Column(Integer, default=0)  # FC
-    fouls_suffered = Column(Integer, default=0)   # FS
-
-    # Estatísticas de goleiro
-    defenses = Column(Integer, default=0)         # DGS
-    goals_conceded = Column(Integer, default=0)  # AFC (usado como gols sofridos)
-
-    # Cartões
-    yellow_cards = Column(Integer, default=0)  # CA
-    red_cards = Column(Integer, default=0)     # CV
-
-    # Chave estrangeira para o clube
     club_id = Column(Integer, ForeignKey('clubs.id'))
-    club = relationship("Club", back_populates="players")
+    club = relationship("Club", back_populates="field_players")
 
 
 class TrainingRoutine(Base):

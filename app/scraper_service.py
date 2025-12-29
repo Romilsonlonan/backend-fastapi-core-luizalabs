@@ -1,289 +1,296 @@
 import re
-from typing import Dict, List, Tuple
+import sys
+from typing import Dict, List, Tuple, Optional
 
 import requests
+import pandas as pd
+import re
+import sys
+from typing import Dict, List, Tuple, Optional, Union
+
+import requests
+import pandas as pd
+
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
+from loguru import logger
 
 from . import crud, models, schemas
+from .schemas import Goalkeeper, FieldPlayer
 
 
+# -------------------------------------------------------------------------
+# CONFIGURAÇÃO GLOBAL DE LOG (TERMINAL + ARQUIVO)
+# -------------------------------------------------------------------------
+logger.remove()
+
+# 🔹 LOG NO TERMINAL (ESSENCIAL)
+logger.add(
+    sys.stdout,
+    level="DEBUG",
+    colorize=True,
+    format="<green>{time:HH:mm:ss}</green> | <level>{level}</level> | {message}",
+)
+
+# 🔹 LOG EM ARQUIVO
+logger.add(
+    "logs/espn_scraper.log",
+    level="DEBUG",
+    rotation="10 MB",
+    retention="10 days",
+    compression="zip",
+    enqueue=True,
+    backtrace=True,
+    diagnose=True,
+)
+
+
+# -------------------------------------------------------------------------
+# SERVIÇO
+# -------------------------------------------------------------------------
 class ESPNScraperService:
-    """
-    Serviço oficial de scraping da ESPN para integração com o banco de dados
-    Usa apenas colunas que realmente existem no web scraping
-    """
 
     def __init__(self, db: Session):
         self.db = db
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         }
 
-    def _parse_height(self, height_text: str) -> float:
-        """Converte altura de texto para metros"""
-        if not height_text or height_text == '--':
-            return 0.0
-        # Remove 'm' e espaços, converte para float
-        height_clean = height_text.replace('m', '').strip()
+    # ------------------------------------------------------------------
+    # PARSERS
+    # ------------------------------------------------------------------
+    def _parse_float(self, text: str, unit: str = "") -> Optional[float]:
+        if not text or text == "--":
+            return None
         try:
-            return float(height_clean)
+            return float(text.replace(unit, "").strip())
         except ValueError:
-            return 0.0
+            logger.warning(f"Falha ao converter float: '{text}'")
+            return None
 
-    def _parse_weight(self, weight_text: str) -> float:
-        """Converte peso de texto para kg"""
-        if not weight_text or weight_text == '--':
-            return 0.0
-        # Remove 'kg' e espaços, converte para float
-        weight_clean = weight_text.replace('kg', '').strip()
-        try:
-            return float(weight_clean)
-        except ValueError:
-            return 0.0
-
-    def _parse_stat(self, stat_text: str) -> int:
-        """Converte estatística de texto para inteiro"""
-        if not stat_text or stat_text == '--':
+    def _parse_int(self, text: str) -> int:
+        if not text or text == "--":
             return 0
         try:
-            return int(stat_text.strip())
+            return int(text.strip())
         except ValueError:
+            logger.warning(f"Falha ao converter int: '{text}'")
             return 0
 
-    def _extract_name_and_number(self, name_text: str) -> Tuple[str, int]:
-        """Extrai nome e número da camisa do texto, se presente no final do nome."""
-        # O usuário indicou que o número da camisa aparece no final do nome, ex: "Nome do Jogador 10"
-        match = re.match(r'^(.*?)\s*(\d+)$', name_text.strip())
+    def _extract_name_and_number(self, text: str) -> Tuple[str, int]:
+        match = re.match(r"^(.*?)\s*(\d+)$", text.strip())
         if match:
-            name = match.group(1).strip()
-            number = int(match.group(2))
-            return name, number
-        return name_text.strip(), 0  # Retorna 0 se nenhum número for encontrado
+            return match.group(1).strip(), int(match.group(2))
+        return text.strip(), 0
 
-    def _extract_player_data(self, row, is_goalkeeper: bool = False) -> Dict:
-        """Extrai dados de uma linha da tabela usando as colunas reais do scraping."""
-        cols = row.find_all('td')
-        # print(f"DEBUG: _extract_player_data - Raw columns: {[c.get_text(strip=True) for c in cols]}") # Debug raw columns
+    # ------------------------------------------------------------------
+    # EXTRAÇÃO DE LINHA
+    # ------------------------------------------------------------------
+    def _extract_player_data(self, row, is_goalkeeper: bool) -> Optional[Union[Goalkeeper, FieldPlayer]]:
+        cols = row.find_all("td")
 
-        # Mapeamento de índices baseado nas colunas fornecidas pelo usuário
-        # Goleiros: Nome, POS, Idade, Alt, P, NAC, J, SUB, D, GS, A, FC, FS, CA, CV
-        # Jogadores de campo: Nome, POS, Idade, Alt, P, NAC, J, SUB, G, A, TC, CG, FC, FS, CA, CV
-
-        # Colunas comuns
-        name_col_idx = 0
-        pos_col_idx = 1
-        age_col_idx = 2
-        height_col_idx = 3
-        weight_col_idx = 4
-        nationality_col_idx = 5
-        games_col_idx = 6
-        sub_appearances_col_idx = 7
-
-        if len(cols) < (sub_appearances_col_idx + 1):  # Mínimo de colunas comuns
-            print(f"DEBUG: _extract_player_data - Not enough common columns ({len(cols)}), skipping row.")
+        if len(cols) < 8:
+            logger.debug("Linha ignorada (colunas insuficientes)")
             return None
 
-        # Extrai nome e número da camisa
-        raw_name_text = cols[name_col_idx].get_text(strip=True)
-        name, jersey_number = self._extract_name_and_number(raw_name_text)
+        name_raw = cols[0].get_text(strip=True)
+        position_raw = cols[1].get_text(strip=True)
+        age = self._parse_int(cols[2].text)
+        height = self._parse_float(cols[3].text, "m")
+        weight = self._parse_float(cols[4].text, "kg")
+        nationality = cols[5].text.strip()
+        games = self._parse_int(cols[6].text)
+        substitutions = self._parse_int(cols[7].text)
 
-        position = cols[pos_col_idx].get_text(strip=True)
-
-        if not name or not position:
-            print(f"DEBUG: _extract_player_data - Name or Position missing, skipping row. Name: '{name}', Position: '{position}'")
-            return None
-
-        player_data = {
-            'name': name,
-            'jersey_number': jersey_number,
-            'position': position,
-            'age': self._parse_stat(cols[age_col_idx].get_text(strip=True)) if len(cols) > age_col_idx else 0,
-            'height': self._parse_height(cols[height_col_idx].get_text(strip=True)) if len(cols) > height_col_idx else 0.0,
-            'weight': self._parse_weight(cols[weight_col_idx].get_text(strip=True)) if len(cols) > weight_col_idx else 0.0,
-            'nationality': cols[nationality_col_idx].get_text(strip=True) if len(cols) > nationality_col_idx else '',
-            'games': self._parse_stat(cols[games_col_idx].get_text(strip=True)) if len(cols) > games_col_idx else 0,
-            'substitute_appearances': self._parse_stat(cols[sub_appearances_col_idx].get_text(strip=True)) if len(cols) > sub_appearances_col_idx else 0,
-        }
-
-        # Estatísticas específicas por posição
         if is_goalkeeper:
-            # Goleiros: D, GS, A, FC, FS, CA, CV (a partir do índice 8)
-            # D = Defesas, GS = Gols Sofridos (Goals Conceded)
-            defenses_idx = 8
-            goals_conceded_idx = 9
-            assists_idx = 10
-            fouls_committed_idx = 11
-            fouls_suffered_idx = 12
-            yellow_cards_idx = 13
-            red_cards_idx = 14
-
-            player_data.update({
-                'defenses': self._parse_stat(cols[defenses_idx].get_text(strip=True)) if len(cols) > defenses_idx else 0,
-                'goals_conceded': self._parse_stat(cols[goals_conceded_idx].get_text(strip=True)) if len(cols) > goals_conceded_idx else 0,
-                'assists': self._parse_stat(cols[assists_idx].get_text(strip=True)) if len(cols) > assists_idx else 0,
-                'fouls_committed': self._parse_stat(cols[fouls_committed_idx].get_text(strip=True)) if len(cols) > fouls_committed_idx else 0,
-                'fouls_suffered': self._parse_stat(cols[fouls_suffered_idx].get_text(strip=True)) if len(cols) > fouls_suffered_idx else 0,
-                'yellow_cards': self._parse_stat(cols[yellow_cards_idx].get_text(strip=True)) if len(cols) > yellow_cards_idx else 0,
-                'red_cards': self._parse_stat(cols[red_cards_idx].get_text(strip=True)) if len(cols) > red_cards_idx else 0,
-                # Zera estatísticas de jogadores de campo
-                'goals': 0,
-                'shots': 0,
-                'shots_on_goal': 0,
-            })
+            try:
+                return Goalkeeper(
+                    Nome=name_raw,
+                    POS="Goleiro",
+                    Idade=age,
+                    Alt=height,
+                    P=weight,
+                    NAC=nationality,
+                    J=games,
+                    SUB=substitutions,
+                    D=self._parse_int(cols[8].text),
+                    GS=self._parse_int(cols[9].text),
+                    A=self._parse_int(cols[10].text),
+                    FC=self._parse_int(cols[11].text),
+                    FS=self._parse_int(cols[12].text),
+                    CA=self._parse_int(cols[13].text),
+                    CV=self._parse_int(cols[14].text),
+                )
+            except IndexError:
+                logger.warning(f"Colunas insuficientes para goleiro: {name_raw}")
+                return None
+            except Exception as e:
+                logger.error(f"Erro ao criar Goalkeeper para {name_raw}: {e}")
+                return None
         else:
-            # Jogadores de campo: G, A, TC, CG, FC, FS, CA, CV (a partir do índice 8)
-            # G = Gols, A = Assistências, TC = Tentativas de Cruzamento (Shots), CG = Cruzamentos Certos (Shots on Goal)
-            goals_idx = 8
-            assists_idx = 9
-            shots_idx = 10
-            shots_on_goal_idx = 11
-            fouls_committed_idx = 12
-            fouls_suffered_idx = 13
-            yellow_cards_idx = 14
-            red_cards_idx = 15
+            position_map = {
+                "D": "Defensor",
+                "M": "Meio-Campista",
+                "A": "Atacante",
+            }
+            position = position_map.get(position_raw, position_raw)
+            try:
+                return FieldPlayer(
+                    Nome=name_raw,
+                    POS=position,
+                    Idade=age,
+                    Alt=height,
+                    P=weight,
+                    NAC=nationality,
+                    J=games,
+                    SUB=substitutions,
+                    G=self._parse_int(cols[8].text),
+                    A=self._parse_int(cols[9].text),
+                    TC=self._parse_int(cols[10].text),
+                    CG=self._parse_int(cols[11].text),
+                    FC=self._parse_int(cols[12].text),
+                    FS=self._parse_int(cols[13].text),
+                    CA=self._parse_int(cols[14].text),
+                    CV=self._parse_int(cols[15].text),
+                )
+            except IndexError:
+                logger.warning(f"Colunas insuficientes para jogador de campo: {name_raw}")
+                return None
+            except Exception as e:
+                logger.error(f"Erro ao criar FieldPlayer para {name_raw}: {e}")
+                return None
 
-            player_data.update({
-                'goals': self._parse_stat(cols[goals_idx].get_text(strip=True)) if len(cols) > goals_idx else 0,
-                'assists': self._parse_stat(cols[assists_idx].get_text(strip=True)) if len(cols) > assists_idx else 0,
-                'shots': self._parse_stat(cols[shots_idx].get_text(strip=True)) if len(cols) > shots_idx else 0,
-                'shots_on_goal': self._parse_stat(cols[shots_on_goal_idx].get_text(strip=True)) if len(cols) > shots_on_goal_idx else 0,
-                'fouls_committed': self._parse_stat(cols[fouls_committed_idx].get_text(strip=True)) if len(cols) > fouls_committed_idx else 0,
-                'fouls_suffered': self._parse_stat(cols[fouls_suffered_idx].get_text(strip=True)) if len(cols) > fouls_suffered_idx else 0,
-                'yellow_cards': self._parse_stat(cols[yellow_cards_idx].get_text(strip=True)) if len(cols) > yellow_cards_idx else 0,
-                'red_cards': self._parse_stat(cols[red_cards_idx].get_text(strip=True)) if len(cols) > red_cards_idx else 0,
-                # Zera estatísticas de goleiro
-                'defenses': 0,
-                'goals_conceded': 0,
-            })
+    # ------------------------------------------------------------------
+    # SCRAPING PRINCIPAL
+    # ------------------------------------------------------------------
+    def scrape_club_squad(self, espn_url: str, club_id: int):
+        logger.info(f"Iniciando scraping | clube={club_id} | url={espn_url}")
 
-        return player_data
-
-    def scrape_club_squad(self, espn_url: str, club_id: int) -> Tuple[List[models.Player], List[str]]:
-        """
-        Faz scraping do elenco de um clube e salva no banco de dados
-        Usa apenas dados reais do web scraping, sem campos fictícios
-        Agora é dinâmico e aceita qualquer URL da ESPN
-
-        Args:
-            espn_url: URL da ESPN para fazer o scraping (ex: https://www.espn.com.br/futebol/time/elenco/_/id/3454)
-            club_id: ID do clube no banco de dados
-
-        Returns:
-            Tuple com (lista de jogadores criados/atualizados, lista de erros)
-        """
         errors = []
-        updated_players = []
+        goalkeepers_data: List[Goalkeeper] = []
+        field_players_data: List[FieldPlayer] = []
 
         try:
-            print(f"🌐 Iniciando scraping do clube ID: {club_id}")
-            print(f"📡 URL: {espn_url}")
-
-            # Faz requisição HTTP com headers dinâmicos
             response = requests.get(espn_url, headers=self.headers, timeout=30)
             response.raise_for_status()
+        except requests.RequestException:
+            logger.exception("Erro HTTP ao acessar ESPN")
+            return [], [], ["Erro HTTP"]
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
+        tables = soup.find_all("table", class_="Table")
 
-            # Debug: Print all h2 tags found on the page (still useful for context)
-            all_h2_tags = soup.find_all('h2')
-            print(f"DEBUG: Todos os cabeçalhos <h2> encontrados: {[h2.get_text(strip=True) for h2 in all_h2_tags]}")
+        # 🔍 LOG DE TODAS AS TABELAS
+        logger.debug(f"Total de tabelas encontradas: {len(tables)}")
 
-            all_players_data: List[Dict] = []
+        for idx, table in enumerate(tables, start=1):
+            headers = [th.text.strip() for th in table.find_all("th")]
+            rows = table.find("tbody").find_all("tr") if table.find("tbody") else []
 
-            # Encontra todas as tabelas com a classe 'Table'
-            tables = soup.find_all('table', class_='Table')
-            print(f"DEBUG: Encontradas {len(tables)} tabelas com class='Table'.")
+            is_goalkeeper = "GS" in headers or "Saves" in headers
 
-            for i, table in enumerate(tables):
-                print(f"\nDEBUG: --- Processando Tabela {i + 1} ---")
-                thead = table.find('thead')
-                if not thead:
-                    print(f"DEBUG: Thead não encontrado na Tabela {i + 1}, pulando.")
-                    continue
+            logger.debug(
+                f"Tabela #{idx} | "
+                f"Goleiros={is_goalkeeper} | "
+                f"Colunas={headers} | "
+                f"Linhas={len(rows)}"
+            )
 
-                headers = [th.get_text(strip=True) for th in thead.find_all('th')]
-                print(f"DEBUG: Cabeçalhos da Tabela {i + 1}: {headers}")
+            for row in rows:
+                player = self._extract_player_data(row, is_goalkeeper)
+                if player:
+                    if isinstance(player, Goalkeeper):
+                        goalkeepers_data.append(player)
+                    elif isinstance(player, FieldPlayer):
+                        field_players_data.append(player)
 
-                is_goalkeeper_table = False
-                # Heurística para identificar o tipo de tabela pelos cabeçalhos
-                if 'D' in headers and 'GS' in headers:  # Defesas e Gols Sofridos são típicos de goleiros
-                    is_goalkeeper_table = True
-                    print(f"DEBUG: Tabela {i + 1} identificada como GOLEIROS pelos cabeçalhos.")
-                elif 'G' in headers and 'A' in headers and 'TC' in headers:  # Gols, Assistências, Tentativas de Cruzamento são típicos de jogadores de campo
-                    is_goalkeeper_table = False
-                    print(f"DEBUG: Tabela {i + 1} identificada como JOGADORES DE CAMPO pelos cabeçalhos.")
+        logger.debug(f"Goleiros extraídos: {len(goalkeepers_data)}")
+        logger.debug(f"Jogadores de campo extraídos: {len(field_players_data)}")
+
+        saved_goalkeepers = []
+        saved_field_players = []
+
+        # Save Goalkeepers
+        for gk_data in goalkeepers_data:
+            try:
+                goalkeeper_create_data = schemas.GoalkeeperCreate(
+                    name=gk_data.name,
+                    position=gk_data.position,
+                    age=gk_data.age,
+                    height=gk_data.height,
+                    weight=gk_data.weight,
+                    nationality=gk_data.nationality,
+                    games=gk_data.games,
+                    substitutions=gk_data.substitutions,
+                    saves=gk_data.saves,
+                    goals_conceded=gk_data.goals_conceded,
+                    assists=gk_data.assists,
+                    fouls_committed=gk_data.fouls_committed,
+                    fouls_suffered=gk_data.fouls_suffered,
+                    yellow_cards=gk_data.yellow_cards,
+                    red_cards=gk_data.red_cards,
+                    club_id=club_id,
+                )
+                existing_goalkeeper = self.db.query(models.Goalkeeper).filter(
+                    models.Goalkeeper.name == gk_data.name,
+                    models.Goalkeeper.club_id == club_id,
+                ).first()
+
+                if existing_goalkeeper:
+                    for k, v in goalkeeper_create_data.model_dump(exclude_unset=True).items():
+                        setattr(existing_goalkeeper, k, v)
+                    self.db.add(existing_goalkeeper)
+                    saved_goalkeepers.append(existing_goalkeeper)
                 else:
-                    print(f"DEBUG: Não foi possível determinar o tipo da Tabela {i + 1} pelos cabeçalhos, pulando.")
-                    continue  # Pula tabelas que não podem ser identificadas
+                    saved_goalkeepers.append(crud.create_goalkeeper(self.db, goalkeeper_create_data, club_id))
+            except Exception:
+                logger.exception(f"Erro salvando goleiro {gk_data.name}")
+                errors.append(gk_data.name)
 
-                tbody = table.find('tbody')
-                if not tbody:
-                    print(f"DEBUG: Tbody não encontrado na Tabela {i + 1}, pulando.")
-                    continue
+        # Save Field Players
+        for fp_data in field_players_data:
+            try:
+                field_player_create_data = schemas.FieldPlayerCreate(
+                    name=fp_data.name,
+                    position=fp_data.position,
+                    age=fp_data.age,
+                    height=fp_data.height,
+                    weight=fp_data.weight,
+                    nationality=fp_data.nationality,
+                    games=fp_data.games,
+                    substitutions=fp_data.substitutions,
+                    goals=fp_data.goals,
+                    assists=fp_data.assists,
+                    total_shots=fp_data.total_shots,
+                    shots_on_goal=fp_data.shots_on_goal,
+                    fouls_committed=fp_data.fouls_committed,
+                    fouls_suffered=fp_data.fouls_suffered,
+                    yellow_cards=fp_data.yellow_cards,
+                    red_cards=fp_data.red_cards,
+                    club_id=club_id,
+                )
+                existing_field_player = self.db.query(models.FieldPlayer).filter(
+                    models.FieldPlayer.name == fp_data.name,
+                    models.FieldPlayer.club_id == club_id,
+                ).first()
 
-                rows = tbody.find_all('tr')
-                print(f"DEBUG: Encontradas {len(rows)} linhas na Tabela {i + 1}.")
+                if existing_field_player:
+                    for k, v in field_player_create_data.model_dump(exclude_unset=True).items():
+                        setattr(existing_field_player, k, v)
+                    self.db.add(existing_field_player)
+                    saved_field_players.append(existing_field_player)
+                else:
+                    saved_field_players.append(crud.create_field_player(self.db, field_player_create_data, club_id))
+            except Exception:
+                logger.exception(f"Erro salvando jogador de campo {fp_data.name}")
+                errors.append(fp_data.name)
 
-                for row in rows:
-                    raw_cols_text = [td.get_text(strip=True) for td in row.find_all('td')]
-                    print(f"DEBUG: _extract_player_data - Raw columns (full text) for Tabela {i + 1}: {raw_cols_text}")
+        self.db.commit()
+        logger.success(f"Scraping finalizado | jogadores_salvos={len(saved_goalkeepers) + len(saved_field_players)}")
 
-                    player_data = self._extract_player_data(row, is_goalkeeper=is_goalkeeper_table)
-                    if player_data:
-                        all_players_data.append(player_data)
-
-            print(f"✅ Total de jogadores extraídos: {len(all_players_data)}")
-
-            # Salva/atualiza no banco de dados
-            for player_data in all_players_data:
-                try:
-                    # Verifica se o jogador já existe (por nome e clube)
-                    existing_player = self.db.query(models.Player).filter(
-                        models.Player.name == player_data['name'],
-                        models.Player.club_id == club_id
-                    ).first()
-
-                    if existing_player:
-                        # Atualiza jogador existente
-                        for key, value in player_data.items():
-                            setattr(existing_player, key, value)
-                        updated_players.append(existing_player)
-                        print(f"🔄 Atualizado: {existing_player.name} (ID: {existing_player.id}, Posição: {existing_player.position}, Número: {existing_player.jersey_number})")
-                    else:
-                        # Cria novo jogador
-                        player_create = schemas.PlayerCreate(
-                            **player_data,
-                            club_id=club_id
-                        )
-                        new_player = crud.create_player(self.db, player_create)
-                        updated_players.append(new_player)
-                        print(f"✅ Criado: {new_player.name} (ID: {new_player.id}, Posição: {new_player.position}, Número: {new_player.jersey_number})")
-
-                except Exception as e:
-                    error_msg = f"Erro ao salvar {player_data['name']}: {str(e)}"
-                    errors.append(error_msg)
-                    print(f"❌ {error_msg}")
-
-            # Commit final
-            self.db.commit()
-            print(f"💾 Commit realizado. Jogadores processados: {len(updated_players)}")
-
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Erro de requisição: {str(e)}"
-            errors.append(error_msg)
-            print(f"❌ {error_msg}")
-        except Exception as e:
-            error_msg = f"Erro geral: {str(e)}"
-            errors.append(error_msg)
-            print(f"❌ {e}")
-            import traceback
-            traceback.print_exc()
-
-        return updated_players, errors
-
-    def get_club_players(self, club_id: int) -> List[models.Player]:
-        """Retorna todos os jogadores de um clube"""
-        return self.db.query(models.Player).filter(models.Player.club_id == club_id).all()
+        return saved_goalkeepers, saved_field_players, errors

@@ -32,15 +32,18 @@ def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile =
         except Exception:
             raise HTTPException(status_code=500, detail="Erro ao salvar imagem")
 
+    # Validar e limitar iniciais a 3 caracteres
+    initials = club.initials.upper()[:3]  # Limita a 3 caracteres
+    
     db_club = models.Club(
         name=club.name,
-        initials=club.initials.upper(),
+        initials=initials,  # Usa as iniciais validadas
         city=club.city,
         shield_image_url=shield_url,
         foundation_date=club.foundation_date,
         br_titles=club.br_titles or 0,
         training_center=club.training_center,
-        espn_url=club.espn_url  # Adicionado
+        espn_url=club.espn_url
     )
 
     db.add(db_club)
@@ -58,7 +61,12 @@ def get_club(db: Session, club_id: int):
 
 
 def get_club_with_players(db: Session, club_id: int):
-    return db.query(models.Club).filter(models.Club.id == club_id).first()
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if club:
+        # Carrega goleiros e jogadores de campo
+        club.goalkeepers  # Acessa para carregar o relacionamento
+        club.field_players  # Acessa para carregar o relacionamento
+    return club
 
 
 def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate):
@@ -72,69 +80,139 @@ def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate):
     return db_club
 
 
-# Funções de Player
-def create_player(db: Session, player: schemas.PlayerCreate):
-    # Validar se o clube existe
-    club = db.query(models.Club).filter(models.Club.id == player.club_id).first()
+def delete_club(db: Session, club_id: int):
+    db_club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if db_club:
+        db.delete(db_club)
+        db.commit()
+        return True
+    return False
+
+
+# Funções de Goleiro
+def create_goalkeeper(db: Session, goalkeeper: schemas.Goalkeeper, club_id: int):
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
     if not club:
-        raise ValueError(f"Clube com ID {player.club_id} não encontrado")
+        raise ValueError(f"Clube com ID {club_id} não encontrado")
 
-    db_player = models.Player(
-        name=player.name,
-        jersey_number=player.jersey_number,
-        position=player.position,
-        age=player.age,
-        height=player.height,
-        weight=player.weight,
-        nationality=player.nationality,
-        games=player.games,
-        substitute_appearances=player.substitute_appearances,
-        goals=player.goals,
-        assists=player.assists,
-        shots=player.shots,
-        shots_on_goal=player.shots_on_goal,
-        fouls_committed=player.fouls_committed,
-        fouls_suffered=player.fouls_suffered,
-        yellow_cards=player.yellow_cards,
-        red_cards=player.red_cards,
-        defenses=player.defenses,
-        goals_conceded=player.goals_conceded,
-        club_id=player.club_id,
+    db_goalkeeper = models.Goalkeeper(
+        name=goalkeeper.name,
+        position=goalkeeper.position,
+        age=goalkeeper.age,
+        height=goalkeeper.height,
+        weight=goalkeeper.weight,
+        nationality=goalkeeper.nationality,
+        games=goalkeeper.games,
+        substitutions=goalkeeper.substitutions,
+        saves=goalkeeper.saves,
+        goals_conceded=goalkeeper.goals_conceded,
+        assists=goalkeeper.assists,
+        fouls_committed=goalkeeper.fouls_committed,
+        fouls_suffered=goalkeeper.fouls_suffered,
+        yellow_cards=goalkeeper.yellow_cards,
+        red_cards=goalkeeper.red_cards,
+        club_id=club_id,
     )
-    db.add(db_player)
+    db.add(db_goalkeeper)
     db.commit()
-    db.refresh(db_player)
-    return db_player
+    db.refresh(db_goalkeeper)
+    return db_goalkeeper
 
 
-def get_players(db: Session, skip: int = 0, limit: int = 100, club_id: int = None, name: str = None):
-    query = db.query(models.Player)
+def get_goalkeepers(db: Session, skip: int = 0, limit: int = 100, club_id: int = None, name: str = None):
+    query = db.query(models.Goalkeeper)
     if club_id:
-        query = query.filter(models.Player.club_id == club_id)
-    if name:  # Adicione este filtro
-        query = query.filter(models.Player.name.ilike(f"%{name}%"))
+        query = query.filter(models.Goalkeeper.club_id == club_id)
+    if name:
+        query = query.filter(models.Goalkeeper.name.ilike(f"%{name}%"))
     return query.offset(skip).limit(limit).all()
 
 
-def get_player(db: Session, player_id: int):
-    return db.query(models.Player).filter(models.Player.id == player_id).first()
+def get_goalkeeper(db: Session, goalkeeper_id: int):
+    return db.query(models.Goalkeeper).filter(models.Goalkeeper.id == goalkeeper_id).first()
 
 
-def update_player(db: Session, player_id: int, player_update: schemas.PlayerUpdate):
-    db_player = db.query(models.Player).filter(models.Player.id == player_id).first()
-    if db_player:
-        update_data = player_update.dict(exclude_unset=True)
+def update_goalkeeper(db: Session, goalkeeper_id: int, goalkeeper_update: schemas.Goalkeeper):
+    db_goalkeeper = db.query(models.Goalkeeper).filter(models.Goalkeeper.id == goalkeeper_id).first()
+    if db_goalkeeper:
+        update_data = goalkeeper_update.dict(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(db_player, field, value)
+            setattr(db_goalkeeper, field, value)
         db.commit()
-        db.refresh(db_player)
-    return db_player
+        db.refresh(db_goalkeeper)
+    return db_goalkeeper
 
 
-def delete_player(db: Session, player_id: int):
-    db_player = db.query(models.Player).filter(models.Player.id == player_id).first()
-    if db_player:
-        db.delete(db_player)
+def delete_goalkeeper(db: Session, goalkeeper_id: int):
+    db_goalkeeper = db.query(models.Goalkeeper).filter(models.Goalkeeper.id == goalkeeper_id).first()
+    if db_goalkeeper:
+        db.delete(db_goalkeeper)
+        db.commit()
+        return True
+    return False
+
+
+# Funções de Jogador de Campo
+def create_field_player(db: Session, field_player: schemas.FieldPlayer, club_id: int):
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if not club:
+        raise ValueError(f"Clube com ID {club_id} não encontrado")
+
+    db_field_player = models.FieldPlayer(
+        name=field_player.name,
+        position=field_player.position,
+        age=field_player.age,
+        height=field_player.height,
+        weight=field_player.weight,
+        nationality=field_player.nationality,
+        games=field_player.games,
+        substitutions=field_player.substitutions,
+        goals=field_player.goals,
+        assists=field_player.assists,
+        total_shots=field_player.total_shots,
+        shots_on_goal=field_player.shots_on_goal,
+        fouls_committed=field_player.fouls_committed,
+        fouls_suffered=field_player.fouls_suffered,
+        yellow_cards=field_player.yellow_cards,
+        red_cards=field_player.red_cards,
+        club_id=club_id,
+    )
+    db.add(db_field_player)
+    db.commit()
+    db.refresh(db_field_player)
+    return db_field_player
+
+
+def get_field_players(db: Session, skip: int = 0, limit: int = 100, club_id: int = None, name: str = None, position: str = None):
+    query = db.query(models.FieldPlayer)
+    if club_id:
+        query = query.filter(models.FieldPlayer.club_id == club_id)
+    if name:
+        query = query.filter(models.FieldPlayer.name.ilike(f"%{name}%"))
+    if position:
+        query = query.filter(models.FieldPlayer.position.ilike(f"%{position}%"))
+    return query.offset(skip).limit(limit).all()
+
+
+def get_field_player(db: Session, field_player_id: int):
+    return db.query(models.FieldPlayer).filter(models.FieldPlayer.id == field_player_id).first()
+
+
+def update_field_player(db: Session, field_player_id: int, field_player_update: schemas.FieldPlayer):
+    db_field_player = db.query(models.FieldPlayer).filter(models.FieldPlayer.id == field_player_id).first()
+    if db_field_player:
+        update_data = field_player_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_field_player, field, value)
+        db.commit()
+        db.refresh(db_field_player)
+    return db_field_player
+
+
+def delete_field_player(db: Session, field_player_id: int):
+    db_field_player = db.query(models.FieldPlayer).filter(models.FieldPlayer.id == field_player_id).first()
+    if db_field_player:
+        db.delete(db_field_player)
         db.commit()
         return True
     return False

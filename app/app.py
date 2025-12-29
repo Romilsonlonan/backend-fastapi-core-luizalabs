@@ -1,6 +1,7 @@
 import os
+import uuid  # Adicionado
 from datetime import date, timedelta
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Union
 
 import requests  # Importar requests separadamente
 from fastapi import (
@@ -18,7 +19,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
-from .config import settings
+from .config import settings  # Correct import for settings
 from .database import SessionLocal, engine
 from .security import (
     create_access_token,
@@ -47,13 +48,14 @@ app = FastAPI()
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=settings.cors_origins_list, # Use origins from settings
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,
 )
+print(f"CORS_ORIGINS configured in app.py: {settings.cors_origins_list}") # Keep this for debugging
 
 
 # =====================================================
@@ -228,13 +230,23 @@ async def update_club(
     return db_club
 
 
+@app.delete("/clubs/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_club(
+    club_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    if not crud.delete_club(db, club_id=club_id):
+        raise HTTPException(status_code=404, detail="Clube não encontrado")
+
+
 # =====================================================
 # 🕸️ Rotas de Web Scraping - VERSÃO CORRIGIDA
 # =====================================================
 from .scraper_service import ESPNScraperService
 
 
-@app.post("/clubs/{club_id}/scrape_players", response_model=List[schemas.PlayerResponse])
+@app.post("/clubs/{club_id}/scrape_players", response_model=List[Union[schemas.GoalkeeperResponse, schemas.FieldPlayerResponse]])
 async def scrape_players_for_club_endpoint(
     club_id: int,
     db: Session = Depends(get_db),
@@ -253,22 +265,23 @@ async def scrape_players_for_club_endpoint(
 
     try:
         scraper_service = ESPNScraperService(db)
-        updated_players, errors = scraper_service.scrape_club_squad(club.espn_url, club_id)
+        goalkeepers, field_players, errors = scraper_service.scrape_club_squad(club.espn_url, club_id)
 
         if errors:
             print(f"⚠️ Erros durante o scraping: {errors}")
 
-        if not updated_players:
+        if not goalkeepers and not field_players:
             raise HTTPException(status_code=404, detail="Nenhum atleta foi encontrado ou processado.")
 
-        player_names = [player.name for player in updated_players]
-        print(f"✅ Jogadores raspados e atualizados para o clube {club.name}: {', '.join(player_names)}")
+        all_players_response = []
+        for gk in goalkeepers:
+            all_players_response.append(schemas.GoalkeeperResponse.model_validate(gk))
+        for fp in field_players:
+            all_players_response.append(schemas.FieldPlayerResponse.model_validate(fp))
 
-        player_responses = []
-        for player in updated_players:
-            player_responses.append(schemas.PlayerResponse.model_validate(player))
+        print(f"✅ Scraping finalizado para o clube {club.name}. Goleiros: {len(goalkeepers)}, Jogadores de Campo: {len(field_players)}")
 
-        return player_responses
+        return all_players_response
 
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=400, detail=f"Erro ao acessar a URL: {e}")
@@ -339,66 +352,132 @@ def delete_training_routine(
 
 
 # =====================================================
-# 🧍 Rotas de Jogadores
+# 🥅 Rotas de Goleiros
 # =====================================================
-@app.post("/players/", response_model=schemas.PlayerResponse)
-def create_player(
-    player: schemas.PlayerCreate,
+@app.post("/goalkeepers/", response_model=schemas.GoalkeeperResponse)
+def create_goalkeeper(
+    goalkeeper: schemas.Goalkeeper,
+    club_id: int,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     try:
-        return crud.create_player(db=db, player=player)
+        return crud.create_goalkeeper(db=db, goalkeeper=goalkeeper, club_id=club_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/players/", response_model=List[schemas.PlayerResponse])
-def read_players(
+@app.get("/goalkeepers/", response_model=List[schemas.GoalkeeperResponse])
+def read_goalkeepers(
     skip: int = 0,
     limit: int = 100,
     club_id: Optional[int] = None,
-    name: Optional[str] = None,  # Adicione esta linha
+    name: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    players = crud.get_players(db, skip=skip, limit=limit, club_id=club_id, name=name)  # Adicione name=name
-    return players
+    goalkeepers = crud.get_goalkeepers(db, skip=skip, limit=limit, club_id=club_id, name=name)
+    return goalkeepers
 
 
-@app.get("/players/{player_id}", response_model=schemas.PlayerResponse)
-def read_player(
-    player_id: int,
+@app.get("/goalkeepers/{goalkeeper_id}", response_model=schemas.GoalkeeperResponse)
+def read_goalkeeper(
+    goalkeeper_id: int,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    db_player = crud.get_player(db, player_id=player_id)
-    if db_player is None:
-        raise HTTPException(status_code=404, detail="Jogador não encontrado")
-    return db_player
+    db_goalkeeper = crud.get_goalkeeper(db, goalkeeper_id=goalkeeper_id)
+    if db_goalkeeper is None:
+        raise HTTPException(status_code=404, detail="Goleiro não encontrado")
+    return db_goalkeeper
 
 
-@app.put("/players/{player_id}", response_model=schemas.PlayerResponse)
-def update_player(
-    player_id: int,
-    player: schemas.PlayerUpdate,
+@app.put("/goalkeepers/{goalkeeper_id}", response_model=schemas.GoalkeeperResponse)
+def update_goalkeeper(
+    goalkeeper_id: int,
+    goalkeeper: schemas.Goalkeeper,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    db_player = crud.update_player(db, player_id=player_id, player_update=player)
-    if db_player is None:
-        raise HTTPException(status_code=404, detail="Jogador não encontrado")
-    return db_player
+    db_goalkeeper = crud.update_goalkeeper(db, goalkeeper_id=goalkeeper_id, goalkeeper_update=goalkeeper)
+    if db_goalkeeper is None:
+        raise HTTPException(status_code=404, detail="Goleiro não encontrado")
+    return db_goalkeeper
 
 
-@app.delete("/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_player(
-    player_id: int,
+@app.delete("/goalkeepers/{goalkeeper_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_goalkeeper(
+    goalkeeper_id: int,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    if not crud.delete_player(db, player_id=player_id):
-        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+    if not crud.delete_goalkeeper(db, goalkeeper_id=goalkeeper_id):
+        raise HTTPException(status_code=404, detail="Goleiro não encontrado")
+
+
+# =====================================================
+# 🏃 Rotas de Jogadores de Campo
+# =====================================================
+@app.post("/field_players/", response_model=schemas.FieldPlayerResponse)
+def create_field_player(
+    field_player: schemas.FieldPlayer,
+    club_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    try:
+        return crud.create_field_player(db=db, field_player=field_player, club_id=club_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/field_players/", response_model=List[schemas.FieldPlayerResponse])
+def read_field_players(
+    skip: int = 0,
+    limit: int = 100,
+    club_id: Optional[int] = None,
+    name: Optional[str] = None,
+    position: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    field_players = crud.get_field_players(db, skip=skip, limit=limit, club_id=club_id, name=name, position=position)
+    return field_players
+
+
+@app.get("/field_players/{field_player_id}", response_model=schemas.FieldPlayerResponse)
+def read_field_player(
+    field_player_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_field_player = crud.get_field_player(db, field_player_id=field_player_id)
+    if db_field_player is None:
+        raise HTTPException(status_code=404, detail="Jogador de campo não encontrado")
+    return db_field_player
+
+
+@app.put("/field_players/{field_player_id}", response_model=schemas.FieldPlayerResponse)
+def update_field_player(
+    field_player_id: int,
+    field_player: schemas.FieldPlayer,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_field_player = crud.update_field_player(db, field_player_id=field_player_id, field_player_update=field_player)
+    if db_field_player is None:
+        raise HTTPException(status_code=404, detail="Jogador de campo não encontrado")
+    return db_field_player
+
+
+@app.delete("/field_players/{field_player_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_field_player(
+    field_player_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    if not crud.delete_field_player(db, field_player_id=field_player_id):
+        raise HTTPException(status_code=404, detail="Jogador de campo não encontrado")
 
 
 # =====================================================

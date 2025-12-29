@@ -213,7 +213,7 @@ def scrape_espn_squad(url: str) -> List[AthleteScrapeResponse]:
 
 # Exemplo de uso (para testes)
 if __name__ == "__main__":
-    url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/ordenar/position/dir/desce/bra.cr_vasco_da_gama"
+    url = "https://www.espn.com.br/futebol/time/elenco/_/id/3454/liga/BRA.1/temporada/2025"
     scraped_players = scrape_espn_squad(url)
     for player in scraped_players:
         print(f"{player.name} - {player.position} - G:{player.goals} - D:{player.defenses}")
