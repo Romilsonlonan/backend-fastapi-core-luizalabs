@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from . import crud, models, schemas
-from .schemas import Goalkeeper, FieldPlayer
+from .schemas import GoalkeeperCreate, FieldPlayerCreate
 
 
 # -------------------------------------------------------------------------
@@ -39,7 +39,6 @@ logger.add(
     rotation="10 MB",
     retention="10 days",
     compression="zip",
-    enqueue=True,
     backtrace=True,
     diagnose=True,
 )
@@ -91,14 +90,13 @@ class ESPNScraperService:
     # ------------------------------------------------------------------
     # EXTRAÇÃO DE LINHA
     # ------------------------------------------------------------------
-    def _extract_player_data(self, row, is_goalkeeper: bool) -> Optional[Union[Goalkeeper, FieldPlayer]]:
+    def _extract_player_data(self, row, is_goalkeeper: bool) -> Optional[Union[schemas.GoalkeeperCreate, schemas.FieldPlayerCreate]]:
+        """Extrai dados de uma linha da tabela."""
         cols = row.find_all("td")
-
-        if len(cols) < 8:
-            logger.debug("Linha ignorada (colunas insuficientes)")
+        if len(cols) < 9:
             return None
 
-        name_raw = cols[0].get_text(strip=True)
+        name_raw = cols[0].text.strip()
         position_raw = cols[1].get_text(strip=True)
         age = self._parse_int(cols[2].text)
         height = self._parse_float(cols[3].text, "m")
@@ -109,23 +107,27 @@ class ESPNScraperService:
 
         if is_goalkeeper:
             try:
-                return Goalkeeper(
-                    Nome=name_raw,
-                    POS="Goleiro",
-                    Idade=age,
-                    Alt=height,
-                    P=weight,
-                    NAC=nationality,
-                    J=games,
-                    SUB=substitutions,
-                    D=self._parse_int(cols[8].text),
-                    GS=self._parse_int(cols[9].text),
-                    A=self._parse_int(cols[10].text),
-                    FC=self._parse_int(cols[11].text),
-                    FS=self._parse_int(cols[12].text),
-                    CA=self._parse_int(cols[13].text),
-                    CV=self._parse_int(cols[14].text),
+                # ✅ CORREÇÃO: Usar nomes das colunas do banco de dados
+                goalkeeper_data = schemas.GoalkeeperCreate(
+                    name=name_raw,
+                    position="Goleiro",
+                    age=age,
+                    height=height,
+                    weight=weight,
+                    nationality=nationality,
+                    games=games,
+                    substitutions=substitutions,
+                    saves=self._parse_int(cols[8].text),      # Defesas
+                    goals_conceded=self._parse_int(cols[9].text),    # Gols sofridos (GS)
+                    assists=self._parse_int(cols[10].text),     # Assistências
+                    fouls_committed=self._parse_int(cols[11].text),    # Faltas cometidas (FC)
+                    fouls_suffered=self._parse_int(cols[12].text),    # Faltas sofridas (FS)
+                    yellow_cards=self._parse_int(cols[13].text),    # Cartões amarelos (CA)
+                    red_cards=self._parse_int(cols[14].text),    # Cartões vermelhos (CV)
+                    club_id=0,  # Será preenchido depois
                 )
+                logger.debug(f"Goalkeeper data extracted: {goalkeeper_data.model_dump_json()}")
+                return goalkeeper_data
             except IndexError:
                 logger.warning(f"Colunas insuficientes para goleiro: {name_raw}")
                 return None
@@ -140,24 +142,28 @@ class ESPNScraperService:
             }
             position = position_map.get(position_raw, position_raw)
             try:
-                return FieldPlayer(
-                    Nome=name_raw,
-                    POS=position,
-                    Idade=age,
-                    Alt=height,
-                    P=weight,
-                    NAC=nationality,
-                    J=games,
-                    SUB=substitutions,
-                    G=self._parse_int(cols[8].text),
-                    A=self._parse_int(cols[9].text),
-                    TC=self._parse_int(cols[10].text),
-                    CG=self._parse_int(cols[11].text),
-                    FC=self._parse_int(cols[12].text),
-                    FS=self._parse_int(cols[13].text),
-                    CA=self._parse_int(cols[14].text),
-                    CV=self._parse_int(cols[15].text),
+                # ✅ CORREÇÃO: Usar nomes das colunas do banco de dados
+                field_player_data = schemas.FieldPlayerCreate(
+                    name=name_raw,
+                    position=position,
+                    age=age,
+                    height=height,
+                    weight=weight,
+                    nationality=nationality,
+                    games=games,
+                    substitutions=substitutions,
+                    goals=self._parse_int(cols[8].text),      # Gols
+                    assists=self._parse_int(cols[9].text),    # Assistências
+                    total_shots=self._parse_int(cols[10].text),   # Total chutes (TC)
+                    shots_on_goal=self._parse_int(cols[11].text),   # Chutes no gol (CG)
+                    fouls_committed=self._parse_int(cols[12].text),   # Faltas cometidas (FC)
+                    fouls_suffered=self._parse_int(cols[13].text),  # Faltas sofridas (FS)
+                    yellow_cards=self._parse_int(cols[14].text),  # Cartões amarelos (CA)
+                    red_cards=self._parse_int(cols[15].text),  # Cartões vermelhos (CV)
+                    club_id=0,  # Será preenchido depois
                 )
+                logger.debug(f"FieldPlayer data extracted: {field_player_data.model_dump_json()}")
+                return field_player_data
             except IndexError:
                 logger.warning(f"Colunas insuficientes para jogador de campo: {name_raw}")
                 return None
@@ -172,8 +178,8 @@ class ESPNScraperService:
         logger.info(f"Iniciando scraping | clube={club_id} | url={espn_url}")
 
         errors = []
-        goalkeepers_data: List[Goalkeeper] = []
-        field_players_data: List[FieldPlayer] = []
+        goalkeepers_data: List[schemas.GoalkeeperCreate] = []
+        field_players_data: List[schemas.FieldPlayerCreate] = []
 
         try:
             response = requests.get(espn_url, headers=self.headers, timeout=30)
@@ -204,9 +210,9 @@ class ESPNScraperService:
             for row in rows:
                 player = self._extract_player_data(row, is_goalkeeper)
                 if player:
-                    if isinstance(player, Goalkeeper):
+                    if isinstance(player, schemas.GoalkeeperCreate):
                         goalkeepers_data.append(player)
-                    elif isinstance(player, FieldPlayer):
+                    elif isinstance(player, schemas.FieldPlayerCreate):
                         field_players_data.append(player)
 
         logger.debug(f"Goleiros extraídos: {len(goalkeepers_data)}")
@@ -218,76 +224,49 @@ class ESPNScraperService:
         # Save Goalkeepers
         for gk_data in goalkeepers_data:
             try:
-                goalkeeper_create_data = schemas.GoalkeeperCreate(
-                    name=gk_data.name,
-                    position=gk_data.position,
-                    age=gk_data.age,
-                    height=gk_data.height,
-                    weight=gk_data.weight,
-                    nationality=gk_data.nationality,
-                    games=gk_data.games,
-                    substitutions=gk_data.substitutions,
-                    saves=gk_data.saves,
-                    goals_conceded=gk_data.goals_conceded,
-                    assists=gk_data.assists,
-                    fouls_committed=gk_data.fouls_committed,
-                    fouls_suffered=gk_data.fouls_suffered,
-                    yellow_cards=gk_data.yellow_cards,
-                    red_cards=gk_data.red_cards,
-                    club_id=club_id,
-                )
                 existing_goalkeeper = self.db.query(models.Goalkeeper).filter(
                     models.Goalkeeper.name == gk_data.name,
                     models.Goalkeeper.club_id == club_id,
                 ).first()
 
                 if existing_goalkeeper:
-                    for k, v in goalkeeper_create_data.model_dump(exclude_unset=True).items():
+                    # Atualiza dados existentes
+                    for k, v in gk_data.model_dump(exclude_unset=True).items():
                         setattr(existing_goalkeeper, k, v)
                     self.db.add(existing_goalkeeper)
                     saved_goalkeepers.append(existing_goalkeeper)
+                    logger.info(f"Goleiro atualizado: {gk_data.name}")
                 else:
-                    saved_goalkeepers.append(crud.create_goalkeeper(self.db, goalkeeper_create_data, club_id))
-            except Exception:
-                logger.exception(f"Erro salvando goleiro {gk_data.name}")
+                    # Cria novo goleiro
+                    new_gk = crud.create_goalkeeper(self.db, gk_data, club_id)
+                    saved_goalkeepers.append(new_gk)
+                    logger.info(f"Goleiro criado: {gk_data.name}")
+            except Exception as e:
+                logger.exception(f"Erro salvando goleiro {gk_data.name}: {e}")
                 errors.append(gk_data.name)
 
         # Save Field Players
         for fp_data in field_players_data:
             try:
-                field_player_create_data = schemas.FieldPlayerCreate(
-                    name=fp_data.name,
-                    position=fp_data.position,
-                    age=fp_data.age,
-                    height=fp_data.height,
-                    weight=fp_data.weight,
-                    nationality=fp_data.nationality,
-                    games=fp_data.games,
-                    substitutions=fp_data.substitutions,
-                    goals=fp_data.goals,
-                    assists=fp_data.assists,
-                    total_shots=fp_data.total_shots,
-                    shots_on_goal=fp_data.shots_on_goal,
-                    fouls_committed=fp_data.fouls_committed,
-                    fouls_suffered=fp_data.fouls_suffered,
-                    yellow_cards=fp_data.yellow_cards,
-                    red_cards=fp_data.red_cards,
-                    club_id=club_id,
-                )
                 existing_field_player = self.db.query(models.FieldPlayer).filter(
                     models.FieldPlayer.name == fp_data.name,
                     models.FieldPlayer.club_id == club_id,
                 ).first()
 
                 if existing_field_player:
-                    for k, v in field_player_create_data.model_dump(exclude_unset=True).items():
+                    # Atualiza dados existentes
+                    for k, v in fp_data.model_dump(exclude_unset=True).items():
                         setattr(existing_field_player, k, v)
                     self.db.add(existing_field_player)
                     saved_field_players.append(existing_field_player)
+                    logger.info(f"Jogador de campo atualizado: {fp_data.name}")
                 else:
-                    saved_field_players.append(crud.create_field_player(self.db, field_player_create_data, club_id))
-            except Exception:
-                logger.exception(f"Erro salvando jogador de campo {fp_data.name}")
+                    # Cria novo jogador
+                    new_fp = crud.create_field_player(self.db, fp_data, club_id)
+                    saved_field_players.append(new_fp)
+                    logger.info(f"Jogador de campo criado: {fp_data.name}")
+            except Exception as e:
+                logger.exception(f"Erro salvando jogador de campo {fp_data.name}: {e}")
                 errors.append(fp_data.name)
 
         self.db.commit()

@@ -1,18 +1,18 @@
-"""create initial tables
+"""Initial database setup with all models and banner_image_url
 
-Revision ID: 11b15db81b43
+Revision ID: 7f52b1239f3c
 Revises: 
-Create Date: 2025-10-28 14:35:48.963617
+Create Date: 2025-12-30 15:43:58.718254
 
 """
 from typing import Sequence, Union
 
+from alembic import op
 import sqlalchemy as sa
 
-from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '11b15db81b43'
+revision: str = '7f52b1239f3c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -31,6 +31,7 @@ def upgrade() -> None:
     sa.Column('br_titles', sa.Integer(), nullable=True),
     sa.Column('training_center', sa.String(), nullable=True),
     sa.Column('espn_url', sa.String(), nullable=True),
+    sa.Column('banner_image_url', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_clubs_id'), 'clubs', ['id'], unique=False)
@@ -46,7 +47,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
-    op.create_table('players',
+    op.create_table('field_players',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
     sa.Column('position', sa.String(), nullable=True),
@@ -55,34 +56,73 @@ def upgrade() -> None:
     sa.Column('weight', sa.Float(), nullable=True),
     sa.Column('nationality', sa.String(), nullable=True),
     sa.Column('games', sa.Integer(), nullable=True),
-    sa.Column('substitute_appearances', sa.Integer(), nullable=True),
+    sa.Column('substitutions', sa.Integer(), nullable=True),
     sa.Column('goals', sa.Integer(), nullable=True),
     sa.Column('assists', sa.Integer(), nullable=True),
-    sa.Column('shots', sa.Integer(), nullable=True),
+    sa.Column('total_shots', sa.Integer(), nullable=True),
     sa.Column('shots_on_goal', sa.Integer(), nullable=True),
     sa.Column('fouls_committed', sa.Integer(), nullable=True),
     sa.Column('fouls_suffered', sa.Integer(), nullable=True),
-    sa.Column('defenses', sa.Integer(), nullable=True),
-    sa.Column('goals_conceded', sa.Integer(), nullable=True),
     sa.Column('yellow_cards', sa.Integer(), nullable=True),
     sa.Column('red_cards', sa.Integer(), nullable=True),
     sa.Column('club_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['club_id'], ['clubs.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_players_id'), 'players', ['id'], unique=False)
-    op.create_index(op.f('ix_players_name'), 'players', ['name'], unique=False)
-    op.create_index(op.f('ix_players_position'), 'players', ['position'], unique=False)
+    op.create_index(op.f('ix_field_players_id'), 'field_players', ['id'], unique=False)
+    op.create_index(op.f('ix_field_players_name'), 'field_players', ['name'], unique=False)
+    op.create_index(op.f('ix_field_players_position'), 'field_players', ['position'], unique=False)
+    op.create_table('goalkeepers',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('position', sa.String(), nullable=True),
+    sa.Column('age', sa.Integer(), nullable=True),
+    sa.Column('height', sa.Float(), nullable=True),
+    sa.Column('weight', sa.Float(), nullable=True),
+    sa.Column('nationality', sa.String(), nullable=True),
+    sa.Column('games', sa.Integer(), nullable=True),
+    sa.Column('substitutions', sa.Integer(), nullable=True),
+    sa.Column('saves', sa.Integer(), nullable=True),
+    sa.Column('goals_conceded', sa.Integer(), nullable=True),
+    sa.Column('assists', sa.Integer(), nullable=True),
+    sa.Column('fouls_committed', sa.Integer(), nullable=True),
+    sa.Column('fouls_suffered', sa.Integer(), nullable=True),
+    sa.Column('yellow_cards', sa.Integer(), nullable=True),
+    sa.Column('red_cards', sa.Integer(), nullable=True),
+    sa.Column('club_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['club_id'], ['clubs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_goalkeepers_id'), 'goalkeepers', ['id'], unique=False)
+    op.create_index(op.f('ix_goalkeepers_name'), 'goalkeepers', ['name'], unique=False)
+    op.create_table('training_routines',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('club_id', sa.Integer(), nullable=True),
+    sa.Column('day_of_week', sa.String(), nullable=True),
+    sa.Column('time', sa.String(), nullable=True),
+    sa.Column('activity', sa.String(), nullable=True),
+    sa.Column('description', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['club_id'], ['clubs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_training_routines_day_of_week'), 'training_routines', ['day_of_week'], unique=False)
+    op.create_index(op.f('ix_training_routines_id'), 'training_routines', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_players_position'), table_name='players')
-    op.drop_index(op.f('ix_players_name'), table_name='players')
-    op.drop_index(op.f('ix_players_id'), table_name='players')
-    op.drop_table('players')
+    op.drop_index(op.f('ix_training_routines_id'), table_name='training_routines')
+    op.drop_index(op.f('ix_training_routines_day_of_week'), table_name='training_routines')
+    op.drop_table('training_routines')
+    op.drop_index(op.f('ix_goalkeepers_name'), table_name='goalkeepers')
+    op.drop_index(op.f('ix_goalkeepers_id'), table_name='goalkeepers')
+    op.drop_table('goalkeepers')
+    op.drop_index(op.f('ix_field_players_position'), table_name='field_players')
+    op.drop_index(op.f('ix_field_players_name'), table_name='field_players')
+    op.drop_index(op.f('ix_field_players_id'), table_name='field_players')
+    op.drop_table('field_players')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')

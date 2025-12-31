@@ -7,7 +7,7 @@ Uso: python add_club.py "Nome do Clube" "SIG" "Cidade" "YYYY-MM-DD" [titulos] [c
 import sys
 
 import requests
-
+import os
 
 def add_club_to_database(name, initials, city, foundation_date, br_titles=0, training_center=None):
     """Adiciona um clube ao banco de dados via API"""

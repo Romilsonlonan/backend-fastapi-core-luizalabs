@@ -48,14 +48,14 @@ app = FastAPI()
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list, # Use origins from settings
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:9002", "http://127.0.0.1:9002", "http://localhost:3000"], # Hardcoded for testing CORS
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,
 )
-print(f"CORS_ORIGINS configured in app.py: {settings.cors_origins_list}") # Keep this for debugging
+print(f"CORS_ORIGINS configured in app.py: http://localhost:8000,http://127.0.0.1:8000,http://localhost:9002,http://127.0.0.1:9002,http://localhost:3000") # Keep this for debugging
 
 
 # =====================================================
@@ -131,8 +131,9 @@ async def create_club(
     foundation_date: Optional[str] = Form(None),
     br_titles: Optional[int] = Form(0),
     training_center: Optional[str] = Form(None),
-    espn_url: Optional[str] = Form(None),  # Adicionado
+    espn_url: Optional[str] = Form(None),
     shield_image: Optional[UploadFile] = File(None),
+    banner_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
     club_data = schemas.ClubCreate(
@@ -144,9 +145,9 @@ async def create_club(
         else None,
         br_titles=br_titles,
         training_center=training_center,
-        espn_url=espn_url,  # Adicionado
+        espn_url=espn_url,
     )
-    return crud.create_club(db=db, club=club_data, shield_file=shield_image)
+    return crud.create_club(db=db, club=club_data, shield_file=shield_image, banner_file=banner_image)
 
 
 @app.get("/clubs/", response_model=List[schemas.ClubResponse])
@@ -174,6 +175,7 @@ async def update_club(
     training_center: Optional[str] = Form(None),
     espn_url: Optional[str] = Form(None),
     shield_image: Optional[UploadFile] = File(None),
+    banner_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
@@ -186,45 +188,16 @@ async def update_club(
         "espn_url": espn_url,
     }
 
-    # Convert foundation_date string to date object if provided
     if foundation_date:
         club_update_data["foundation_date"] = date.fromisoformat(foundation_date)
     else:
-        club_update_data["foundation_date"] = None # Explicitly set to None if empty string is sent
+        club_update_data["foundation_date"] = None
 
-    # Filter out None values to allow partial updates
     club_update_data = {k: v for k, v in club_update_data.items() if v is not None}
 
-    # Handle shield_image separately if provided
-    shield_url = None
-    if shield_image:
-        # Validações de segurança (similar ao create_club)
-        if not shield_image.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Apenas imagens são permitidas")
-        if shield_image.size > 5 * 1024 * 1024:  # 5MB limite
-            raise HTTPException(status_code=400, detail="Imagem muito grande (máximo 5MB)")
+    club_update_schema = schemas.ClubCreate(**club_update_data)
 
-        file_ext = os.path.splitext(shield_image.filename)[1]
-        file_name = f"shield_{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIRECTORY, file_name)
-
-        try:
-            with open(file_path, "wb") as buffer:
-                content = await shield_image.read()
-                buffer.write(content)
-            shield_url = f"/{UPLOAD_DIRECTORY}/{file_name}"
-            club_update_data["shield_image_url"] = shield_url
-        except Exception:
-            raise HTTPException(status_code=500, detail="Erro ao salvar imagem do escudo")
-    
-    # If shield_image is explicitly sent as an empty string (e.g., to clear it), set URL to None
-    # This logic might need refinement based on how the frontend sends "clear image" signal
-    # For now, if shield_image is None and no new file is uploaded, existing URL remains
-    # If frontend sends a specific signal to clear, we'd handle it here.
-
-    club_update_schema = schemas.ClubCreate(**club_update_data) # Use ClubCreate for validation
-
-    db_club = crud.update_club(db, club_id=club_id, club_update=club_update_schema)
+    db_club = crud.update_club(db, club_id=club_id, club_update=club_update_schema, shield_file=shield_image, banner_file=banner_image)
     if db_club is None:
         raise HTTPException(status_code=404, detail="Clube não encontrado")
     return db_club
@@ -478,6 +451,74 @@ def delete_field_player(
 ):
     if not crud.delete_field_player(db, field_player_id=field_player_id):
         raise HTTPException(status_code=404, detail="Jogador de campo não encontrado")
+
+
+@app.get("/statistics/top_goal_scorers/", response_model=List[schemas.FieldPlayerResponse])
+def get_top_goal_scorers_endpoint(
+    limit: int = 7,
+    position: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Retorna os 7 maiores artilheiros do campeonato brasileiro,
+    com opção de filtrar por posição.
+    """
+    return crud.get_top_goal_scorers(db, limit=limit, position=position)
+
+
+@app.get("/statistics/top_players_by_statistic/", response_model=List[Union[schemas.FieldPlayerResponse, schemas.GoalkeeperResponse]])
+def get_top_players_by_statistic_endpoint(
+    limit: int = 7,
+    statistic: str = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Retorna os 7 maiores jogadores por uma estatística específica (faltas sofridas, faltas cometidas, cartões).
+    """
+    if statistic not in ['fouls_suffered', 'fouls_committed', 'yellow_cards', 'red_cards']:
+        raise HTTPException(status_code=400, detail="Estatística inválida fornecida.")
+    return crud.get_top_players_by_statistic(db, limit=limit, statistic=statistic)
+
+
+@app.get("/statistics/top_players_by_age/", response_model=List[Union[schemas.FieldPlayerResponse, schemas.GoalkeeperResponse]])
+def get_top_players_by_age_endpoint(
+    limit: int = 7,
+    age_filter: str = 'oldest',
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Retorna os 7 jogadores mais velhos ou mais novos do campeonato.
+    """
+    if age_filter not in ['oldest', 'youngest']:
+        raise HTTPException(status_code=400, detail="Filtro de idade inválido fornecido.")
+    return crud.get_top_players_by_age(db, limit=limit, age_filter=age_filter)
+
+
+@app.get("/statistics/total_athletes_count/", response_model=schemas.TotalCountResponse)
+def get_total_athletes_count_endpoint(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Retorna o número total de atletas (jogadores de campo e goleiros).
+    """
+    total_count = crud.get_total_athletes_count(db)
+    return {"total_count": total_count}
+
+
+@app.get("/statistics/total_clubs_count/", response_model=schemas.TotalCountResponse)
+def get_total_clubs_count_endpoint(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Retorna o número total de clubes.
+    """
+    total_count = crud.get_total_clubs_count(db)
+    return {"total_count": total_count}
 
 
 # =====================================================

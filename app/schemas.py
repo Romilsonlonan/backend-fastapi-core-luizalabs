@@ -22,6 +22,10 @@ class User(UserBase):
         from_attributes = True
 
 
+class TotalCountResponse(BaseModel):
+    total_count: int
+
+
 class Goalkeeper(BaseModel):
     name: str = Field(..., alias="Nome")
     position: str = Field(..., alias="POS")
@@ -148,7 +152,8 @@ class ClubCreate(BaseModel):
     foundation_date: Optional[date] = None
     br_titles: Optional[int] = 0
     training_center: Optional[str] = None
-    espn_url: Optional[str] = None  # ➕ Adiciona campo para URL do ESPN
+    espn_url: Optional[str] = None
+    banner_image_url: Optional[str] = None
 
 
 class ClubSimpleResponse(BaseModel):
@@ -161,7 +166,8 @@ class ClubSimpleResponse(BaseModel):
     foundation_date: Optional[date]
     br_titles: int
     training_center: Optional[str]
-    espn_url: Optional[str]  # ➕ Adiciona campo para URL do ESPN
+    espn_url: Optional[str]
+    banner_image_url: Optional[str]
 
     class Config:
         from_attributes = True
@@ -224,6 +230,7 @@ class ClubResponse(BaseModel):
     br_titles: int
     training_center: Optional[str]
     espn_url: Optional[str]
+    banner_image_url: Optional[str]
     goalkeepers: List[GoalkeeperResponse] = []
     field_players: List[FieldPlayerResponse] = []
     training_routines: List["TrainingRoutineResponse"] = []

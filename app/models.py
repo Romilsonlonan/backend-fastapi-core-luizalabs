@@ -26,7 +26,8 @@ class Club(Base):
     foundation_date = Column(Date, nullable=True)
     br_titles = Column(Integer, default=0)
     training_center = Column(String, nullable=True)  # Adicionado para centro de treinamento
-    espn_url = Column(String, nullable=True)  # ➕ Adiciona campo para URL do ESPN
+    espn_url = Column(String, nullable=True)
+    banner_image_url = Column(String, nullable=True) # Adiciona campo para URL do banner
 
     goalkeepers = relationship("Goalkeeper", back_populates="club")
     field_players = relationship("FieldPlayer", back_populates="club")

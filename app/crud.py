@@ -3,47 +3,59 @@ import uuid
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from . import models, schemas
 
 
-def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile = None):
+def create_club(db: Session, club: schemas.ClubCreate, shield_file: UploadFile = None, banner_file: UploadFile = None):
     shield_url = None
+    banner_url = None
 
     if shield_file:
-        # Validações de segurança
         if not shield_file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Apenas imagens são permitidas")
-
-        if shield_file.size > 5 * 1024 * 1024:  # 5MB limite
-            raise HTTPException(status_code=400, detail="Imagem muito grande (máximo 5MB)")
-
-        # Salvar arquivo com nome único
+            raise HTTPException(status_code=400, detail="Apenas imagens são permitidas para o escudo.")
+        if shield_file.size > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Imagem do escudo muito grande (máximo 5MB).")
         file_ext = os.path.splitext(shield_file.filename)[1]
         file_name = f"shield_{uuid.uuid4()}{file_ext}"
         file_path = os.path.join("uploaded_images", file_name)
-
         try:
             with open(file_path, "wb") as buffer:
                 content = shield_file.file.read()
                 buffer.write(content)
-
             shield_url = f"/uploaded_images/{file_name}"
         except Exception:
-            raise HTTPException(status_code=500, detail="Erro ao salvar imagem")
+            raise HTTPException(status_code=500, detail="Erro ao salvar imagem do escudo.")
 
-    # Validar e limitar iniciais a 3 caracteres
-    initials = club.initials.upper()[:3]  # Limita a 3 caracteres
+    if banner_file:
+        if not banner_file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Apenas imagens são permitidas para o banner.")
+        if banner_file.size > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Imagem do banner muito grande (máximo 5MB).")
+        file_ext = os.path.splitext(banner_file.filename)[1]
+        file_name = f"banner_{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join("uploaded_images", file_name)
+        try:
+            with open(file_path, "wb") as buffer:
+                content = banner_file.file.read()
+                buffer.write(content)
+            banner_url = f"/uploaded_images/{file_name}"
+        except Exception:
+            raise HTTPException(status_code=500, detail="Erro ao salvar imagem do banner.")
+
+    initials = club.initials.upper()[:3]
     
     db_club = models.Club(
         name=club.name,
-        initials=initials,  # Usa as iniciais validadas
+        initials=initials,
         city=club.city,
         shield_image_url=shield_url,
         foundation_date=club.foundation_date,
         br_titles=club.br_titles or 0,
         training_center=club.training_center,
-        espn_url=club.espn_url
+        espn_url=club.espn_url,
+        banner_image_url=banner_url
     )
 
     db.add(db_club)
@@ -69,9 +81,41 @@ def get_club_with_players(db: Session, club_id: int):
     return club
 
 
-def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate):
+def update_club(db: Session, club_id: int, club_update: schemas.ClubCreate, shield_file: UploadFile = None, banner_file: UploadFile = None):
     db_club = db.query(models.Club).filter(models.Club.id == club_id).first()
     if db_club:
+        if shield_file:
+            if not shield_file.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Apenas imagens são permitidas para o escudo.")
+            if shield_file.size > 5 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Imagem do escudo muito grande (máximo 5MB).")
+            file_ext = os.path.splitext(shield_file.filename)[1]
+            file_name = f"shield_{uuid.uuid4()}{file_ext}"
+            file_path = os.path.join("uploaded_images", file_name)
+            try:
+                with open(file_path, "wb") as buffer:
+                    content = shield_file.file.read()
+                    buffer.write(content)
+                db_club.shield_image_url = f"/uploaded_images/{file_name}"
+            except Exception:
+                raise HTTPException(status_code=500, detail="Erro ao salvar imagem do escudo.")
+
+        if banner_file:
+            if not banner_file.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Apenas imagens são permitidas para o banner.")
+            if banner_file.size > 5 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Imagem do banner muito grande (máximo 5MB).")
+            file_ext = os.path.splitext(banner_file.filename)[1]
+            file_name = f"banner_{uuid.uuid4()}{file_ext}"
+            file_path = os.path.join("uploaded_images", file_name)
+            try:
+                with open(file_path, "wb") as buffer:
+                    content = banner_file.file.read()
+                    buffer.write(content)
+                db_club.banner_image_url = f"/uploaded_images/{file_name}"
+            except Exception:
+                raise HTTPException(status_code=500, detail="Erro ao salvar imagem do banner.")
+
         update_data = club_update.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_club, field, value)
@@ -90,7 +134,7 @@ def delete_club(db: Session, club_id: int):
 
 
 # Funções de Goleiro
-def create_goalkeeper(db: Session, goalkeeper: schemas.Goalkeeper, club_id: int):
+def create_goalkeeper(db: Session, goalkeeper: schemas.GoalkeeperCreate, club_id: int):
     club = db.query(models.Club).filter(models.Club.id == club_id).first()
     if not club:
         raise ValueError(f"Clube com ID {club_id} não encontrado")
@@ -153,7 +197,7 @@ def delete_goalkeeper(db: Session, goalkeeper_id: int):
 
 
 # Funções de Jogador de Campo
-def create_field_player(db: Session, field_player: schemas.FieldPlayer, club_id: int):
+def create_field_player(db: Session, field_player: schemas.FieldPlayerCreate, club_id: int):
     club = db.query(models.Club).filter(models.Club.id == club_id).first()
     if not club:
         raise ValueError(f"Clube com ID {club_id} não encontrado")
@@ -216,6 +260,59 @@ def delete_field_player(db: Session, field_player_id: int):
         db.commit()
         return True
     return False
+
+
+def get_top_goal_scorers(db: Session, limit: int = 7, position: str = None):
+    query = db.query(models.FieldPlayer).filter(models.FieldPlayer.goals > 0)
+    if position:
+        query = query.filter(models.FieldPlayer.position == position)
+    query = query.order_by(desc(models.FieldPlayer.goals))
+    return query.limit(limit).all()
+
+
+def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = None):
+    if statistic not in ['fouls_suffered', 'fouls_committed', 'yellow_cards', 'red_cards']:
+        raise ValueError("Estatística inválida fornecida.")
+
+    # Query for FieldPlayers
+    field_players_query = db.query(models.FieldPlayer).filter(getattr(models.FieldPlayer, statistic) > 0)
+    field_players_query = field_players_query.order_by(desc(getattr(models.FieldPlayer, statistic)))
+    field_players = field_players_query.all()
+
+    # Query for Goalkeepers
+    goalkeepers_query = db.query(models.Goalkeeper).filter(getattr(models.Goalkeeper, statistic) > 0)
+    goalkeepers_query = goalkeepers_query.order_by(desc(getattr(models.Goalkeeper, statistic)))
+    goalkeepers = goalkeepers_query.all()
+
+    # Combine and sort
+    all_players = field_players + goalkeepers
+    all_players.sort(key=lambda p: getattr(p, statistic), reverse=True)
+
+    return all_players[:limit]
+
+
+def get_top_players_by_age(db: Session, limit: int = 7, age_filter: str = 'oldest'):
+    if age_filter not in ['oldest', 'youngest']:
+        raise ValueError("Filtro de idade inválido fornecido.")
+
+    field_player_order_by_clause = desc(models.FieldPlayer.age) if age_filter == 'oldest' else models.FieldPlayer.age
+    goalkeeper_order_by_clause = desc(models.Goalkeeper.age) if age_filter == 'oldest' else models.Goalkeeper.age
+    
+    # Query for FieldPlayers
+    field_players_query = db.query(models.FieldPlayer).filter(models.FieldPlayer.age > 0)
+    field_players_query = field_players_query.order_by(field_player_order_by_clause)
+    field_players = field_players_query.all()
+
+    # Query for Goalkeepers
+    goalkeepers_query = db.query(models.Goalkeeper).filter(models.Goalkeeper.age > 0)
+    goalkeepers_query = goalkeepers_query.order_by(goalkeeper_order_by_clause)
+    goalkeepers = goalkeepers_query.all()
+
+    # Combine and sort
+    all_players = field_players + goalkeepers
+    all_players.sort(key=lambda p: p.age, reverse=(age_filter == 'oldest'))
+
+    return all_players[:limit]
 
 
 # Funções de User (mantidas)
@@ -290,6 +387,16 @@ def create_admin_user_if_not_exists(db: Session, admin_email: str, admin_passwor
         return admin_user
     print(f"Usuário administrador '{admin_email}' já existe.")
     return db_user
+
+
+def get_total_athletes_count(db: Session) -> int:
+    total_field_players = db.query(models.FieldPlayer).count()
+    total_goalkeepers = db.query(models.Goalkeeper).count()
+    return total_field_players + total_goalkeepers
+
+
+def get_total_clubs_count(db: Session) -> int:
+    return db.query(models.Club).count()
 
 
 # Funções de TrainingRoutine

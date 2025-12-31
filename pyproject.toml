@@ -73,7 +73,7 @@ db-v = 'alembic current'
 db-hist = 'alembic history'
 
 # Resetar banco (apaga e recria)
-db-reset = 'rm app.db && alembic upgrade head'
+db-reset = 'rm app.db'
 
 db-mig = 'alembic revision --autogenerate -m "Auto migration $(date +%Y%m%d_%H%M%S)"'
 
