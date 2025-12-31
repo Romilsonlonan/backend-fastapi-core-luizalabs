@@ -27,6 +27,7 @@ from .security import (
     get_password_hash,
     verify_password,
 )
+from .scraper_api import router as scraper_router # Import the scraper router
 
 # =====================================================
 # 📘 Inicialização do Banco de Dados
@@ -38,6 +39,11 @@ models.Base.metadata.create_all(bind=engine)
 # 🚀 Instanciação da Aplicação FastAPI
 # =====================================================
 app = FastAPI()
+
+# Include the scraper router
+app.include_router(scraper_router)
+
+print("Scraper router included in FastAPI app.") # Added for debugging
 
 
 # 🛠️ **Correções Aplicadas:**
