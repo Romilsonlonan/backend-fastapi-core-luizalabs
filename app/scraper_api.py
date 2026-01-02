@@ -199,7 +199,7 @@ async def scrape_brasileirao_leaderboard(db: Session = Depends(get_db)):
         print("🔄 Iniciando scraping da classificação do Brasileirão...")
         
         # URL da tabela de classificação do Brasileirão na ESPN
-        url = "https://www.espn.com.br/futebol/classificacao/_/liga/BRA.1"
+        url = "https://www.espn.com.br/futebol/classificacao/_/liga/bra.1/temporada/2025"
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -210,26 +210,79 @@ async def scrape_brasileirao_leaderboard(db: Session = Depends(get_db)):
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Encontra a tabela de classificação
-        tabela = soup.find('table', {'class': 'Table'})
-        if not tabela:
-            raise HTTPException(status_code=404, detail="Tabela de classificação não encontrada")
+        # A ESPN usa duas tabelas separadas: uma para os nomes e outra para as estatísticas
+        # Usando seletores mais flexíveis para encontrar as tabelas
+        tabela_nomes = soup.select_one('div.Table__Scroller--fixed table')
+        tabela_stats = soup.select_one('div.Table__Scroller table')
         
-        # Extrai os dados da tabela
-        linhas = tabela.find('tbody').find_all('tr')
+        if not tabela_nomes or not tabela_stats:
+            # Fallback para seletores genéricos se os específicos falharem
+            tabelas = soup.find_all('table', class_=lambda x: x and 'Table' in x)
+            if len(tabelas) >= 2:
+                tabela_nomes = tabelas[0]
+                tabela_stats = tabelas[1]
+
+        if not tabela_nomes or not tabela_stats:
+            print(f"❌ Tabelas não encontradas. Nomes: {bool(tabela_nomes)}, Stats: {bool(tabela_stats)}")
+            raise HTTPException(status_code=404, detail="Tabelas de classificação não encontradas na página da ESPN")
+        
+        # Extrai as linhas de ambas as tabelas
+        linhas_nomes = tabela_nomes.select('tbody tr')
+        linhas_stats = tabela_stats.select('tbody tr')
+        
+        print(f"📊 Linhas encontradas - Nomes: {len(linhas_nomes)}, Stats: {len(linhas_stats)}")
+        
         classificacao = []
         
-        for i, linha in enumerate(linhas[:20]):  # Top 20 clubes
-            colunas = linha.find_all('td')
-            if len(colunas) >= 8:
+        # Itera sobre as linhas (geralmente 20 times no Brasileirão)
+        for i in range(min(len(linhas_nomes), len(linhas_stats))):
+            col_nome = linhas_nomes[i].find_all('td')
+            col_stat = linhas_stats[i].find_all('td')
+            
+            if len(col_nome) >= 1 and len(col_stat) >= 8:
                 posicao = i + 1
-                clube_nome = colunas[1].get_text(strip=True)
-                pontos = int(colunas[2].get_text(strip=True))
-                jogos = int(colunas[3].get_text(strip=True))
-                vitorias = int(colunas[4].get_text(strip=True))
-                empates = int(colunas[5].get_text(strip=True))
-                derrotas = int(colunas[6].get_text(strip=True))
-                saldo_gols = int(colunas[7].get_text(strip=True))
+                
+                # Tenta encontrar o nome do clube de forma mais robusta
+                # Na ESPN, a estrutura costuma ser: <span class="team-name"> ou <a> dentro da célula
+                # O nome completo geralmente está em um span com classe 'hide-mobile'
+                nome_element = col_nome[0].select_one('.hide-mobile') or \
+                               col_nome[0].select_one('a') or \
+                               col_nome[0].select_one('span') or \
+                               col_nome[0]
+                
+                # Pega o texto e remove espaços extras
+                clube_nome = nome_element.get_text(strip=True)
+                
+                # Se o nome vier com a posição (ex: "1Flamengo"), removemos os números do início
+                import re
+                clube_nome = re.sub(r'^\d+', '', clube_nome).strip()
+                
+                # Caso especial: se o nome ainda estiver vazio ou for apenas um caractere (sigla)
+                # tentamos buscar o atributo 'title' ou 'alt' em imagens/links dentro da célula
+                if not clube_nome or len(clube_nome) <= 3:
+                    img = col_nome[0].find('img')
+                    if img and img.get('title'):
+                        clube_nome = img.get('title')
+                    elif img and img.get('alt'):
+                        clube_nome = img.get('alt')
+                
+                # Debug para verificar o que está sendo capturado
+                if not clube_nome:
+                    print(f"⚠️ Nome do clube vazio na posição {posicao}. HTML: {col_nome[0]}")
+                
+                # Na ESPN, a ordem das colunas de stats é: J, V, E, D, GP, GC, SG, PTS
+                try:
+                    jogos = int(col_stat[0].get_text(strip=True) or 0)
+                    vitorias = int(col_stat[1].get_text(strip=True) or 0)
+                    empates = int(col_stat[2].get_text(strip=True) or 0)
+                    derrotas = int(col_stat[3].get_text(strip=True) or 0)
+                    gp = int(col_stat[4].get_text(strip=True) or 0)
+                    gc = int(col_stat[5].get_text(strip=True) or 0)
+                    saldo_gols = int(col_stat[6].get_text(strip=True) or 0)
+                    pontos = int(col_stat[7].get_text(strip=True) or 0)
+                except (ValueError, IndexError) as e:
+                    print(f"⚠️ Erro ao converter valores para o time {clube_nome}: {e}")
+                    continue
                 
                 # Busca o clube no banco de dados
                 clube = db.query(Club).filter(Club.name.ilike(f"%{clube_nome}%")).first()
@@ -244,6 +297,8 @@ async def scrape_brasileirao_leaderboard(db: Session = Depends(get_db)):
                     "vitorias": vitorias,
                     "empates": empates,
                     "derrotas": derrotas,
+                    "gols_pro": gp,
+                    "gols_contra": gc,
                     "saldo_gols": saldo_gols
                 })
         

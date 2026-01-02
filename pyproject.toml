@@ -48,6 +48,7 @@ dev = [
 
 [tool.taskipy.tasks]
 fast = 'poetry install --no-root ; poetry update'
+venv = 'poetry env info'
 run = 'CORS_ORIGINS="http://localhost:8000,http://127.0.0.1:8000,http://localhost:9002,http://localhost:3000" uvicorn app.app:app --reload --host 0.0.0.0 --port 8000'
 pre_test = 'task lint'
 test = 'PYTHONPATH=. pytest -s -x --cov=fastapi_core -vv'
