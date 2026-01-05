@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 from loguru import logger
 
-from . import crud, models, schemas
+from . import crud_modules as crud, models, schemas
 from .schemas import GoalkeeperCreate, FieldPlayerCreate
 
 
@@ -63,17 +63,17 @@ class ESPNScraperService:
     # ------------------------------------------------------------------
     # PARSERS
     # ------------------------------------------------------------------
-    def _parse_float(self, text: str, unit: str = "") -> Optional[float]:
-        if not text or text == "--":
-            return None
+    def _parse_float(self, text: str, unit: str = "") -> float:
+        if not text or text.strip() in ["", "--"]:
+            return 0.0
         try:
-            return float(text.replace(unit, "").strip())
+            return float(text.replace(unit, "").replace(",", ".").strip())
         except ValueError:
             logger.warning(f"Falha ao converter float: '{text}'")
-            return None
+            return 0.0
 
     def _parse_int(self, text: str) -> int:
-        if not text or text == "--":
+        if not text or text.strip() in ["", "--"]:
             return 0
         try:
             return int(text.strip())
@@ -81,10 +81,23 @@ class ESPNScraperService:
             logger.warning(f"Falha ao converter int: '{text}'")
             return 0
 
+    def _parse_str(self, text: str) -> str:
+        if not text or text.strip() in ["", "--"]:
+            return "0"
+        return text.strip()
+
     def _extract_name_and_number(self, text: str) -> Tuple[str, int]:
+        # Remove trailing numbers (jersey numbers) from name
+        # ESPN often appends the number to the name like "Agustín Rossi1"
         match = re.match(r"^(.*?)\s*(\d+)$", text.strip())
         if match:
             return match.group(1).strip(), int(match.group(2))
+        
+        # If no space before number, try to split at the first digit
+        match_no_space = re.match(r"^([^\d]+)(\d+)$", text.strip())
+        if match_no_space:
+            return match_no_space.group(1).strip(), int(match_no_space.group(2))
+            
         return text.strip(), 0
 
     # ------------------------------------------------------------------
@@ -96,12 +109,13 @@ class ESPNScraperService:
         if len(cols) < 9:
             return None
 
-        name_raw = cols[0].text.strip()
-        position_raw = cols[1].get_text(strip=True)
+        name_raw, jersey_number = self._extract_name_and_number(cols[0].text.strip())
+        name_raw = self._parse_str(name_raw)
+        position_raw = self._parse_str(cols[1].get_text(strip=True))
         age = self._parse_int(cols[2].text)
         height = self._parse_float(cols[3].text, "m")
         weight = self._parse_float(cols[4].text, "kg")
-        nationality = cols[5].text.strip()
+        nationality = self._parse_str(cols[5].text)
         games = self._parse_int(cols[6].text)
         substitutions = self._parse_int(cols[7].text)
 
@@ -184,6 +198,7 @@ class ESPNScraperService:
         try:
             response = requests.get(espn_url, headers=self.headers, timeout=30)
             response.raise_for_status()
+            response.encoding = response.apparent_encoding
         except requests.RequestException:
             logger.exception("Erro HTTP ao acessar ESPN")
             return [], [], ["Erro HTTP"]
@@ -197,8 +212,12 @@ class ESPNScraperService:
         for idx, table in enumerate(tables, start=1):
             headers = [th.text.strip() for th in table.find_all("th")]
             rows = table.find("tbody").find_all("tr") if table.find("tbody") else []
+            
+            if not rows:
+                # Try finding rows directly in table if tbody is missing
+                rows = table.find_all("tr")[1:] # Skip header row
 
-            is_goalkeeper = "GS" in headers or "Saves" in headers
+            is_goalkeeper = any(h in headers for h in ["GS", "Saves", "D"])
 
             logger.debug(
                 f"Tabela #{idx} | "
@@ -210,6 +229,7 @@ class ESPNScraperService:
             for row in rows:
                 player = self._extract_player_data(row, is_goalkeeper)
                 if player:
+                    player.club_id = club_id # Ensure club_id is set
                     if isinstance(player, schemas.GoalkeeperCreate):
                         goalkeepers_data.append(player)
                     elif isinstance(player, schemas.FieldPlayerCreate):
@@ -238,7 +258,7 @@ class ESPNScraperService:
                     logger.info(f"Goleiro atualizado: {gk_data.name}")
                 else:
                     # Cria novo goleiro
-                    new_gk = crud.create_goalkeeper(self.db, gk_data, club_id)
+                    new_gk = crud.create_goalkeeper(self.db, gk_data)
                     saved_goalkeepers.append(new_gk)
                     logger.info(f"Goleiro criado: {gk_data.name}")
             except Exception as e:
@@ -262,7 +282,7 @@ class ESPNScraperService:
                     logger.info(f"Jogador de campo atualizado: {fp_data.name}")
                 else:
                     # Cria novo jogador
-                    new_fp = crud.create_field_player(self.db, fp_data, club_id)
+                    new_fp = crud.create_field_player(self.db, fp_data)
                     saved_field_players.append(new_fp)
                     logger.info(f"Jogador de campo criado: {fp_data.name}")
             except Exception as e:

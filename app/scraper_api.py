@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 
 from .database import get_db
 from .models import Goalkeeper, FieldPlayer, Club
-from .scraper_altura_peso import scraper_espn_altura_peso
 
 router = APIRouter(prefix="/api/scraper", tags=["scraper"])
 
@@ -58,70 +57,6 @@ def processar_dados_atletas(df: pd.DataFrame, clube_id: int, tipo: str) -> List[
     return atletas_processados
 
 
-@router.post("/atualizar-atletas/{clube_id}")
-async def atualizar_atletas(clube_id: int, db: Session = Depends(get_db)):
-    """
-    Atualiza dados dos atletas de um clube específico usando web scraping
-    """
-    try:
-        # Verifica se o clube existe
-        clube = db.query(Club).filter(Club.id == clube_id).first()
-        if not clube:
-            raise HTTPException(status_code=404, detail="Clube não encontrado")
-
-        if not clube.espn_url:
-            raise HTTPException(status_code=400, detail="URL ESPN não configurada para este clube")
-
-        print(f"🔄 Atualizando atletas do {clube.name}...")
-
-        # Executa o scraper
-        resultados = scraper_espn_altura_peso(clube.espn_url)
-
-        goleiros_df = resultados["goleiros"]
-        jogadores_df = resultados["jogadores"]
-
-        print(f"📊 Goleiros encontrados: {len(goleiros_df)}")
-        print(f"📊 Jogadores encontrados: {len(jogadores_df)}")
-
-        # Remove atletas antigos do clube
-        db.query(Goalkeeper).filter(Goalkeeper.club_id == clube_id).delete()
-        db.query(FieldPlayer).filter(FieldPlayer.club_id == clube_id).delete()
-
-        # Processa e insere novos atletas
-        all_atletas_processados = []
-
-        if not goleiros_df.empty:
-            goleiros_data = processar_dados_atletas(goleiros_df, clube_id, "goleiro")
-            for atleta_data in goleiros_data:
-                goalkeeper = Goalkeeper(**atleta_data)
-                db.add(goalkeeper)
-                all_atletas_processados.append(atleta_data)
-
-        if not jogadores_df.empty:
-            jogadores_data = processar_dados_atletas(jogadores_df, clube_id, "jogador")
-            for atleta_data in jogadores_data:
-                field_player = FieldPlayer(**atleta_data)
-                db.add(field_player)
-                all_atletas_processados.append(atleta_data)
-
-        # Commit das mudanças
-        db.commit()
-
-        print(f"✅ Atualização concluída: {len(all_atletas_processados)} atletas processados")
-
-        return {
-            "message": "Atletas atualizados com sucesso",
-            "clube": clube.name,
-            "total_atletas": len(all_atletas_processados),
-            "goleiros": len(goleiros_df),
-            "jogadores_campo": len(jogadores_df),
-            "data_atualizacao": datetime.now().isoformat()
-        }
-
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Erro ao atualizar atletas: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro ao atualizar atletas: {str(e)}")
 
 
 @router.get("/status/{clube_id}")
@@ -137,11 +72,11 @@ async def verificar_status_atualizacao(clube_id: int, db: Session = Depends(get_
         # Pega a data mais recente de atualização entre goleiros e jogadores de campo
         latest_goalkeeper = db.query(Goalkeeper).filter(
             Goalkeeper.club_id == clube_id
-        ).order_by(Goalkeeper.updated_at.desc()).first() # Assuming 'updated_at' field exists
+        ).order_by(Goalkeeper.updated_at.desc()).first()
 
         latest_field_player = db.query(FieldPlayer).filter(
             FieldPlayer.club_id == clube_id
-        ).order_by(FieldPlayer.updated_at.desc()).first() # Assuming 'updated_at' field exists
+        ).order_by(FieldPlayer.updated_at.desc()).first()
 
         data_ultima_atualizacao = None
         if latest_goalkeeper and latest_field_player:

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date as date_type
 from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -66,6 +66,25 @@ class GoalkeeperCreate(BaseModel):
     club_id: int
 
 
+class GoalkeeperUpdate(BaseModel):
+    name: Optional[str] = None
+    position: Optional[str] = None
+    age: Optional[int] = None
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    nationality: Optional[str] = None
+    games: Optional[int] = None
+    substitutions: Optional[int] = None
+    saves: Optional[int] = None
+    goals_conceded: Optional[int] = None
+    assists: Optional[int] = None
+    fouls_committed: Optional[int] = None
+    fouls_suffered: Optional[int] = None
+    yellow_cards: Optional[int] = None
+    red_cards: Optional[int] = None
+    club_id: Optional[int] = None
+
+
 class FieldPlayer(BaseModel):
     name: str = Field(..., alias="Nome")
     position: str = Field(..., alias="POS")
@@ -106,6 +125,26 @@ class FieldPlayerCreate(BaseModel):
     yellow_cards: Optional[int] = 0
     red_cards: Optional[int] = 0
     club_id: int
+
+
+class FieldPlayerUpdate(BaseModel):
+    name: Optional[str] = None
+    position: Optional[str] = None
+    age: Optional[int] = None
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    nationality: Optional[str] = None
+    games: Optional[int] = None
+    substitutions: Optional[int] = None
+    goals: Optional[int] = None
+    assists: Optional[int] = None
+    total_shots: Optional[int] = None
+    shots_on_goal: Optional[int] = None
+    fouls_committed: Optional[int] = None
+    fouls_suffered: Optional[int] = None
+    yellow_cards: Optional[int] = None
+    red_cards: Optional[int] = None
+    club_id: Optional[int] = None
 
 
 class AthleteScrapeResponse(BaseModel):
@@ -149,7 +188,7 @@ class ClubCreate(BaseModel):
     initials: str
     city: str
     shield_image_url: Optional[str] = None
-    foundation_date: Optional[date] = None
+    foundation_date: Optional[date_type] = None
     br_titles: Optional[int] = 0
     training_center: Optional[str] = None
     espn_url: Optional[str] = None
@@ -163,7 +202,7 @@ class ClubSimpleResponse(BaseModel):
     initials: str
     city: str
     shield_image_url: Optional[str]
-    foundation_date: Optional[date]
+    foundation_date: Optional[date_type]
     br_titles: int
     training_center: Optional[str]
     espn_url: Optional[str]
@@ -191,6 +230,12 @@ class GoalkeeperResponse(BaseModel):
     yellow_cards: Optional[int]
     red_cards: Optional[int]
     club_id: int
+    body_fat: Optional[float] = None
+    muscle_mass: Optional[float] = None
+    hdl: Optional[float] = None
+    ldl: Optional[float] = None
+    total_cholesterol: Optional[float] = None
+    triglycerides: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -215,6 +260,12 @@ class FieldPlayerResponse(BaseModel):
     yellow_cards: Optional[int]
     red_cards: Optional[int]
     club_id: int
+    body_fat: Optional[float] = None
+    muscle_mass: Optional[float] = None
+    hdl: Optional[float] = None
+    ldl: Optional[float] = None
+    total_cholesterol: Optional[float] = None
+    triglycerides: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -226,14 +277,14 @@ class ClubResponse(BaseModel):
     initials: str
     city: str
     shield_image_url: Optional[str]
-    foundation_date: Optional[date]
+    foundation_date: Optional[date_type]
     br_titles: int
     training_center: Optional[str]
     espn_url: Optional[str]
     banner_image_url: Optional[str]
     goalkeepers: List[GoalkeeperResponse] = []
     field_players: List[FieldPlayerResponse] = []
-    training_routines: List["TrainingRoutineResponse"] = []
+    training_routines: List[Optional["TrainingRoutineResponse"]] = []
 
     class Config:
         from_attributes = True
@@ -263,3 +314,51 @@ class TrainingRoutineResponse(TrainingRoutineBase):
 
     class Config:
         from_attributes = True
+
+
+class AthleteProgressBase(BaseModel):
+    week: str
+    weight: float
+    body_fat: float
+    muscle_mass: float
+    date: Optional[date_type] = None
+
+
+class AthleteProgressCreate(AthleteProgressBase):
+    goalkeeper_id: Optional[int] = None
+    field_player_id: Optional[int] = None
+
+
+class AthleteProgressResponse(AthleteProgressBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class NutritionalPlanBase(BaseModel):
+    plan_details: str
+    nutritionist_name: str
+    nutritionist_id: str
+    date: Optional[date_type] = None
+
+
+class NutritionalPlanCreate(NutritionalPlanBase):
+    goalkeeper_id: Optional[int] = None
+    field_player_id: Optional[int] = None
+
+
+class NutritionalPlanResponse(NutritionalPlanBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class AthleteHealthUpdate(BaseModel):
+    body_fat: Optional[float] = None
+    muscle_mass: Optional[float] = None
+    hdl: Optional[float] = None
+    ldl: Optional[float] = None
+    total_cholesterol: Optional[float] = None
+    triglycerides: Optional[float] = None

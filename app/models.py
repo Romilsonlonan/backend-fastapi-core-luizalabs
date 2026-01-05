@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String
+from datetime import date
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -29,8 +31,8 @@ class Club(Base):
     espn_url = Column(String, nullable=True)
     banner_image_url = Column(String, nullable=True) # Adiciona campo para URL do banner
 
-    goalkeepers = relationship("Goalkeeper", back_populates="club")
-    field_players = relationship("FieldPlayer", back_populates="club")
+    goalkeepers = relationship("Goalkeeper", back_populates="club", cascade="all, delete-orphan")
+    field_players = relationship("FieldPlayer", back_populates="club", cascade="all, delete-orphan")
 
 
 class Goalkeeper(Base):
@@ -53,8 +55,22 @@ class Goalkeeper(Base):
     yellow_cards = Column(Integer, default=0)
     red_cards = Column(Integer, default=0)
 
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
     club_id = Column(Integer, ForeignKey('clubs.id'))
     club = relationship("Club", back_populates="goalkeepers")
+
+    # Campos para Centro de Treinamento
+    body_fat = Column(Float, nullable=True)
+    muscle_mass = Column(Float, nullable=True)
+    hdl = Column(Float, nullable=True)
+    ldl = Column(Float, nullable=True)
+    total_cholesterol = Column(Float, nullable=True)
+    triglycerides = Column(Float, nullable=True)
+
+    progress_history = relationship("AthleteProgress", back_populates="goalkeeper")
+    nutritional_plans = relationship("NutritionalPlan", back_populates="goalkeeper")
 
 
 class FieldPlayer(Base):
@@ -78,8 +94,53 @@ class FieldPlayer(Base):
     yellow_cards = Column(Integer, default=0)
     red_cards = Column(Integer, default=0)
 
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
     club_id = Column(Integer, ForeignKey('clubs.id'))
     club = relationship("Club", back_populates="field_players")
+
+    # Campos para Centro de Treinamento
+    body_fat = Column(Float, nullable=True)
+    muscle_mass = Column(Float, nullable=True)
+    hdl = Column(Float, nullable=True)
+    ldl = Column(Float, nullable=True)
+    total_cholesterol = Column(Float, nullable=True)
+    triglycerides = Column(Float, nullable=True)
+
+    progress_history = relationship("AthleteProgress", back_populates="field_player")
+    nutritional_plans = relationship("NutritionalPlan", back_populates="field_player")
+
+
+class AthleteProgress(Base):
+    __tablename__ = 'athlete_progress'
+
+    id = Column(Integer, primary_key=True, index=True)
+    goalkeeper_id = Column(Integer, ForeignKey('goalkeepers.id'), nullable=True)
+    field_player_id = Column(Integer, ForeignKey('field_players.id'), nullable=True)
+    week = Column(String, index=True)
+    weight = Column(Float)
+    body_fat = Column(Float)
+    muscle_mass = Column(Float)
+    date = Column(Date, default=date.today)
+
+    goalkeeper = relationship("Goalkeeper", back_populates="progress_history")
+    field_player = relationship("FieldPlayer", back_populates="progress_history")
+
+
+class NutritionalPlan(Base):
+    __tablename__ = 'nutritional_plans'
+
+    id = Column(Integer, primary_key=True, index=True)
+    goalkeeper_id = Column(Integer, ForeignKey('goalkeepers.id'), nullable=True)
+    field_player_id = Column(Integer, ForeignKey('field_players.id'), nullable=True)
+    plan_details = Column(String)
+    nutritionist_name = Column(String)
+    nutritionist_id = Column(String)
+    date = Column(Date, default=date.today)
+
+    goalkeeper = relationship("Goalkeeper", back_populates="nutritional_plans")
+    field_player = relationship("FieldPlayer", back_populates="nutritional_plans")
 
 
 class TrainingRoutine(Base):

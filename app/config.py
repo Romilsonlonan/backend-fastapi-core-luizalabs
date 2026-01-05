@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = 'sqlite:///./sql_app.db'
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-here")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440 # 24 hours
     ADMIN_EMAIL: str
     ADMIN_PASSWORD: str
     ADMIN_NAME: str

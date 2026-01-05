@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from . import crud, models, schemas
+from . import crud_modules as crud, models, schemas
 from .config import settings  # Correct import for settings
 from .database import SessionLocal, engine
 from .security import (
@@ -40,28 +40,31 @@ models.Base.metadata.create_all(bind=engine)
 # =====================================================
 app = FastAPI()
 
-# Include the scraper router
-app.include_router(scraper_router)
-
-print("Scraper router included in FastAPI app.") # Added for debugging
-
-
-# 🛠️ **Correções Aplicadas:**
-
-# **1. Backend - CORS Melhorado**
-
 # 🌐 Configuração CORS
 # =====================================================
+# Nota: allow_origins não pode ser ["*"] quando allow_credentials é True.
+# Listamos explicitamente as origens permitidas.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:9002", "http://127.0.0.1:9002", "http://localhost:3000"], # Hardcoded for testing CORS
+    allow_origins=[
+        "http://localhost:9002",
+        "http://127.0.0.1:9002",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,
 )
-print(f"CORS_ORIGINS configured in app.py: http://localhost:8000,http://127.0.0.1:8000,http://localhost:9002,http://127.0.0.1:9002,http://localhost:3000") # Keep this for debugging
+
+# Include the scraper router
+app.include_router(scraper_router)
+
+print("Scraper router included and CORS configured in FastAPI app.")
 
 
 # =====================================================
@@ -395,6 +398,61 @@ def delete_goalkeeper(
 
 
 # =====================================================
+# 🏥 Rotas de Centro de Treinamento (Saúde e Nutrição)
+# =====================================================
+@app.patch("/athletes/{athlete_id}/health", response_model=Union[schemas.GoalkeeperResponse, schemas.FieldPlayerResponse])
+def update_athlete_health(
+    athlete_id: int,
+    is_goalkeeper: bool,
+    health_data: schemas.AthleteHealthUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_athlete = crud.update_athlete_health(db, athlete_id, is_goalkeeper, health_data)
+    if not db_athlete:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado")
+    return db_athlete
+
+
+@app.post("/athletes/progress/", response_model=schemas.AthleteProgressResponse)
+def create_athlete_progress(
+    progress: schemas.AthleteProgressCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.create_athlete_progress(db, progress)
+
+
+@app.get("/athletes/{athlete_id}/progress", response_model=List[schemas.AthleteProgressResponse])
+def read_athlete_progress(
+    athlete_id: int,
+    is_goalkeeper: bool,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.get_athlete_progress(db, athlete_id, is_goalkeeper)
+
+
+@app.post("/athletes/nutritional_plans/", response_model=schemas.NutritionalPlanResponse)
+def create_nutritional_plan(
+    plan: schemas.NutritionalPlanCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.create_nutritional_plan(db, plan)
+
+
+@app.get("/athletes/{athlete_id}/nutritional_plans", response_model=List[schemas.NutritionalPlanResponse])
+def read_nutritional_plans(
+    athlete_id: int,
+    is_goalkeeper: bool,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.get_nutritional_plans(db, athlete_id, is_goalkeeper)
+
+
+# =====================================================
 # 🏃 Rotas de Jogadores de Campo
 # =====================================================
 @app.post("/field_players/", response_model=schemas.FieldPlayerResponse)
@@ -481,10 +539,15 @@ def get_top_players_by_statistic_endpoint(
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     """
-    Retorna os 7 maiores jogadores por uma estatística específica (faltas sofridas, faltas cometidas, cartões).
+    Retorna os 7 maiores jogadores por uma estatística específica.
     """
-    if statistic not in ['fouls_suffered', 'fouls_committed', 'yellow_cards', 'red_cards']:
-        raise HTTPException(status_code=400, detail="Estatística inválida fornecida.")
+    valid_statistics = [
+        'goals', 'assists', 'total_shots', 'shots_on_goal', 
+        'goals_conceded', 'saves', 'fouls_suffered', 
+        'fouls_committed', 'yellow_cards', 'red_cards'
+    ]
+    if statistic not in valid_statistics:
+        raise HTTPException(status_code=400, detail=f"Estatística inválida fornecida: {statistic}")
     return crud.get_top_players_by_statistic(db, limit=limit, statistic=statistic)
 
 
