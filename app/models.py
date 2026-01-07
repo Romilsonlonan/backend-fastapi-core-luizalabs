@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, DateTime
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -154,6 +154,59 @@ class TrainingRoutine(Base):
     description = Column(String, nullable=True)
 
     club = relationship("Club", back_populates="training_routines")
+
+
+class Appointment(Base):
+    __tablename__ = 'appointments'
+
+    id = Column(Integer, primary_key=True, index=True)
+    athlete_id = Column(Integer, nullable=True)
+    athlete_type = Column(String, nullable=True)  # 'G' for Goalkeeper, 'F' for FieldPlayer
+    nutritionist_id = Column(Integer, ForeignKey('users.id'))
+    service_id = Column(Integer, ForeignKey('services.id'))
+    location_id = Column(Integer, ForeignKey('locations.id'))
+    start_time = Column(DateTime, index=True)
+    end_time = Column(DateTime)
+    status = Column(String, default='pending')  # confirmed, pending, canceled
+    notes = Column(String, nullable=True)
+    is_special_event = Column(Boolean, default=False)
+    event_title = Column(String, nullable=True)
+
+    nutritionist = relationship("User")
+    service = relationship("Service")
+    location = relationship("Location")
+
+
+class Service(Base):
+    __tablename__ = 'services'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    duration = Column(Integer)  # in minutes
+    price = Column(Float)
+    description = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+
+class Location(Base):
+    __tablename__ = 'locations'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    address = Column(String, nullable=True)
+    is_online = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+
+
+class Availability(Base):
+    __tablename__ = 'availabilities'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    day_of_week = Column(Integer)  # 0-6 (Monday-Sunday)
+    start_time = Column(String)  # "08:00"
+    end_time = Column(String)  # "20:00"
+    is_active = Column(Boolean, default=True)
 
 
 # Adicionar relacionamento em Club para TrainingRoutine

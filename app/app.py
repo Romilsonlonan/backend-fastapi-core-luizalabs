@@ -1,6 +1,6 @@
 import os
 import uuid  # Adicionado
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import Annotated, List, Optional, Union
 
 import requests  # Importar requests separadamente
@@ -19,6 +19,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from . import crud_modules as crud, models, schemas
+from .crud_modules.seed_data import seed_appointment_data
 from .config import settings  # Correct import for settings
 from .database import SessionLocal, engine
 from .security import (
@@ -53,7 +54,12 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -453,6 +459,106 @@ def read_nutritional_plans(
 
 
 # =====================================================
+# 📅 Rotas de Agenda e Consultas
+# =====================================================
+@app.get("/appointments/", response_model=List[schemas.AppointmentResponse])
+def read_appointments(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.get_appointments(db, nutritionist_id=current_user.id, start_date=start_date, end_date=end_date)
+
+
+@app.post("/appointments/", response_model=schemas.AppointmentResponse)
+def create_appointment(
+    appointment: schemas.AppointmentCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.create_appointment(db, appointment)
+
+
+@app.patch("/appointments/{appointment_id}/status", response_model=schemas.AppointmentResponse)
+def update_appointment_status(
+    appointment_id: int,
+    status: str,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.update_appointment_status(db, appointment_id, status)
+
+
+@app.put("/appointments/{appointment_id}", response_model=schemas.AppointmentResponse)
+def update_appointment(
+    appointment_id: int,
+    appointment: schemas.AppointmentBase,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    db_appointment = crud.update_appointment(db, appointment_id, appointment)
+    if not db_appointment:
+        raise HTTPException(status_code=404, detail="Consulta não encontrada")
+    return db_appointment
+
+
+@app.delete("/appointments/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    if not crud.delete_appointment(db, appointment_id):
+        raise HTTPException(status_code=404, detail="Consulta não encontrada")
+
+
+@app.get("/services/", response_model=List[schemas.ServiceResponse])
+def read_services(db: Session = Depends(get_db)):
+    return crud.get_services(db)
+
+
+@app.post("/services/", response_model=schemas.ServiceResponse)
+def create_service(
+    service: schemas.ServiceCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.create_service(db, service)
+
+
+@app.get("/locations/", response_model=List[schemas.LocationResponse])
+def read_locations(db: Session = Depends(get_db)):
+    return crud.get_locations(db)
+
+
+@app.post("/locations/", response_model=schemas.LocationResponse)
+def create_location(
+    location: schemas.LocationCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.create_location(db, location)
+
+
+@app.get("/availabilities/", response_model=List[schemas.AvailabilityResponse])
+def read_availabilities(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.get_availabilities(db, user_id=current_user.id)
+
+
+@app.post("/availabilities/", response_model=schemas.AvailabilityResponse)
+def update_availability(
+    availability: schemas.AvailabilityCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    return crud.update_availability(db, availability)
+
+
+# =====================================================
 # 🏃 Rotas de Jogadores de Campo
 # =====================================================
 @app.post("/field_players/", response_model=schemas.FieldPlayerResponse)
@@ -521,25 +627,28 @@ def delete_field_player(
 def get_top_goal_scorers_endpoint(
     limit: int = 7,
     position: Optional[str] = None,
+    club_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     """
     Retorna os 7 maiores artilheiros do campeonato brasileiro,
-    com opção de filtrar por posição.
+    com opção de filtrar por posição e clube.
     """
-    return crud.get_top_goal_scorers(db, limit=limit, position=position)
+    return crud.get_top_goal_scorers(db, limit=limit, position=position, club_id=club_id)
 
 
 @app.get("/statistics/top_players_by_statistic/", response_model=List[Union[schemas.FieldPlayerResponse, schemas.GoalkeeperResponse]])
 def get_top_players_by_statistic_endpoint(
     limit: int = 7,
     statistic: str = None,
+    club_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     """
-    Retorna os 7 maiores jogadores por uma estatística específica.
+    Retorna os 7 maiores jogadores por uma estatística específica,
+    com opção de filtrar por clube.
     """
     valid_statistics = [
         'goals', 'assists', 'total_shots', 'shots_on_goal', 
@@ -548,22 +657,24 @@ def get_top_players_by_statistic_endpoint(
     ]
     if statistic not in valid_statistics:
         raise HTTPException(status_code=400, detail=f"Estatística inválida fornecida: {statistic}")
-    return crud.get_top_players_by_statistic(db, limit=limit, statistic=statistic)
+    return crud.get_top_players_by_statistic(db, limit=limit, statistic=statistic, club_id=club_id)
 
 
 @app.get("/statistics/top_players_by_age/", response_model=List[Union[schemas.FieldPlayerResponse, schemas.GoalkeeperResponse]])
 def get_top_players_by_age_endpoint(
     limit: int = 7,
     age_filter: str = 'oldest',
+    club_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     """
-    Retorna os 7 jogadores mais velhos ou mais novos do campeonato.
+    Retorna os 7 jogadores mais velhos ou mais novos do campeonato,
+    com opção de filtrar por clube.
     """
     if age_filter not in ['oldest', 'youngest']:
         raise HTTPException(status_code=400, detail="Filtro de idade inválido fornecido.")
-    return crud.get_top_players_by_age(db, limit=limit, age_filter=age_filter)
+    return crud.get_top_players_by_age(db, limit=limit, age_filter=age_filter, club_id=club_id)
 
 
 @app.get("/statistics/total_athletes_count/", response_model=schemas.TotalCountResponse)
@@ -652,15 +763,14 @@ async def update_user_profile(
 
 @app.put("/users/me/password", response_model=schemas.User)
 async def change_password(
-    current_password: str,
-    new_password: str,
+    password_data: schemas.PasswordChange,
     current_user: Annotated[schemas.User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    if not verify_password(current_password, current_user.hashed_password):
+    if not verify_password(password_data.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Senha atual incorreta")
 
-    hashed_password = get_password_hash(new_password)
+    hashed_password = get_password_hash(password_data.new_password)
     db_user = crud.update_user_password(db, current_user.id, hashed_password)
     if not db_user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -702,7 +812,7 @@ async def upload_profile_image(
 
 
 # =====================================================
-# 🛠️ Criação automática de usuário administrador
+# 🛠️ Criação automática de usuário administrador e dados de semente
 # =====================================================
 with next(get_db()) as db:
     crud.create_admin_user_if_not_exists(
@@ -712,3 +822,4 @@ with next(get_db()) as db:
         settings.ADMIN_NAME,
         get_password_hash,
     )
+    seed_appointment_data(db)

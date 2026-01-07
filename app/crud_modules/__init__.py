@@ -22,6 +22,11 @@ from .training_routines import (
     create_training_routine, get_training_routines, get_training_routine,
     update_training_routine, delete_training_routine
 )
+from .appointments import (
+    get_appointments, create_appointment, update_appointment_status,
+    get_services, create_service, get_locations, create_location,
+    get_availabilities, update_availability
+)
 
 __all__ = [
     # clubs
@@ -41,4 +46,8 @@ __all__ = [
     # training_routines
     "create_training_routine", "get_training_routines", "get_training_routine",
     "update_training_routine", "delete_training_routine",
+    # appointments
+    "get_appointments", "create_appointment", "update_appointment_status",
+    "get_services", "create_service", "get_locations", "create_location",
+    "get_availabilities", "update_availability",
 ]

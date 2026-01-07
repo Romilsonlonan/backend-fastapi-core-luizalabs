@@ -1,4 +1,4 @@
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -11,6 +11,11 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class User(UserBase):
@@ -362,3 +367,86 @@ class AthleteHealthUpdate(BaseModel):
     ldl: Optional[float] = None
     total_cholesterol: Optional[float] = None
     triglycerides: Optional[float] = None
+
+
+class ServiceBase(BaseModel):
+    name: str
+    duration: int
+    price: float
+    description: Optional[str] = None
+    is_active: bool = True
+
+
+class ServiceCreate(ServiceBase):
+    pass
+
+
+class ServiceResponse(ServiceBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class LocationBase(BaseModel):
+    name: str
+    address: Optional[str] = None
+    is_online: bool = False
+    is_active: bool = True
+
+
+class LocationCreate(LocationBase):
+    pass
+
+
+class LocationResponse(LocationBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class AvailabilityBase(BaseModel):
+    day_of_week: int
+    start_time: str
+    end_time: str
+    is_active: bool = True
+
+
+class AvailabilityCreate(AvailabilityBase):
+    user_id: int
+
+
+class AvailabilityResponse(AvailabilityBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class AppointmentBase(BaseModel):
+    athlete_id: Optional[int] = None
+    athlete_type: Optional[str] = None
+    service_id: int
+    location_id: int
+    start_time: datetime
+    end_time: datetime
+    status: str = "pending"
+    notes: Optional[str] = None
+    is_special_event: bool = False
+    event_title: Optional[str] = None
+
+
+class AppointmentCreate(AppointmentBase):
+    nutritionist_id: int
+
+
+class AppointmentResponse(AppointmentBase):
+    id: int
+    nutritionist_id: int
+    service: ServiceResponse
+    location: LocationResponse
+
+    class Config:
+        from_attributes = True

@@ -45,15 +45,17 @@ def get_nutritional_plans(db: Session, athlete_id: int, is_goalkeeper: bool):
     return db.query(models.NutritionalPlan).filter(models.NutritionalPlan.field_player_id == athlete_id).all()
 
 
-def get_top_goal_scorers(db: Session, limit: int = 7, position: str = None):
+def get_top_goal_scorers(db: Session, limit: int = 7, position: str = None, club_id: int = None):
     query = db.query(models.FieldPlayer).filter(models.FieldPlayer.goals > 0)
     if position:
         query = query.filter(models.FieldPlayer.position == position)
+    if club_id:
+        query = query.filter(models.FieldPlayer.club_id == club_id)
     query = query.order_by(desc(models.FieldPlayer.goals))
     return query.limit(limit).all()
 
 
-def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = None):
+def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = None, club_id: int = None):
     valid_statistics = [
         'goals', 'assists', 'total_shots', 'shots_on_goal', 
         'goals_conceded', 'saves', 'fouls_suffered', 
@@ -65,12 +67,16 @@ def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = N
     field_players = []
     if hasattr(models.FieldPlayer, statistic):
         field_players_query = db.query(models.FieldPlayer).filter(getattr(models.FieldPlayer, statistic) > 0)
+        if club_id:
+            field_players_query = field_players_query.filter(models.FieldPlayer.club_id == club_id)
         field_players_query = field_players_query.order_by(desc(getattr(models.FieldPlayer, statistic)))
         field_players = field_players_query.all()
 
     goalkeepers = []
     if hasattr(models.Goalkeeper, statistic):
         goalkeepers_query = db.query(models.Goalkeeper).filter(getattr(models.Goalkeeper, statistic) > 0)
+        if club_id:
+            goalkeepers_query = goalkeepers_query.filter(models.Goalkeeper.club_id == club_id)
         goalkeepers_query = goalkeepers_query.order_by(desc(getattr(models.Goalkeeper, statistic)))
         goalkeepers = goalkeepers_query.all()
 
@@ -80,7 +86,7 @@ def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = N
     return all_players[:limit]
 
 
-def get_top_players_by_age(db: Session, limit: int = 7, age_filter: str = 'oldest'):
+def get_top_players_by_age(db: Session, limit: int = 7, age_filter: str = 'oldest', club_id: int = None):
     if age_filter not in ['oldest', 'youngest']:
         raise ValueError("Filtro de idade inválido fornecido.")
 
@@ -88,10 +94,14 @@ def get_top_players_by_age(db: Session, limit: int = 7, age_filter: str = 'oldes
     goalkeeper_order_by_clause = desc(models.Goalkeeper.age) if age_filter == 'oldest' else models.Goalkeeper.age
     
     field_players_query = db.query(models.FieldPlayer).filter(models.FieldPlayer.age > 0)
+    if club_id:
+        field_players_query = field_players_query.filter(models.FieldPlayer.club_id == club_id)
     field_players_query = field_players_query.order_by(field_player_order_by_clause)
     field_players = field_players_query.all()
 
     goalkeepers_query = db.query(models.Goalkeeper).filter(models.Goalkeeper.age > 0)
+    if club_id:
+        goalkeepers_query = goalkeepers_query.filter(models.Goalkeeper.club_id == club_id)
     goalkeepers_query = goalkeepers_query.order_by(goalkeeper_order_by_clause)
     goalkeepers = goalkeepers_query.all()
 
