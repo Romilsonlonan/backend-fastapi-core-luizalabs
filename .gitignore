@@ -228,4 +228,5 @@ cbf_database.db
 sql_app.db.backup
 
 # Sensitive configuration files
-.env
+.env 
+.env/local
