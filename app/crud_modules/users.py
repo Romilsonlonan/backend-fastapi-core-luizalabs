@@ -62,6 +62,15 @@ def delete_user(db: Session, user_id: int):
     return False
 
 
+def update_user_subscription(db: Session, user_id: int, status: str):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user:
+        db_user.subscription_status = status
+        db.commit()
+        db.refresh(db_user)
+    return db_user
+
+
 def create_admin_user_if_not_exists(db: Session, admin_email: str, admin_password: str, admin_name: str, get_password_hash_func):
     db_user = get_user_by_email(db, email=admin_email)
     if not db_user:

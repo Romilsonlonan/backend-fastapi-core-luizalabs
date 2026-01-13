@@ -15,6 +15,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     profile_image_url = Column(String, nullable=True)
+    subscription_status = Column(String, default='free') # 'free', 'premium'
 
 
 class Club(Base):

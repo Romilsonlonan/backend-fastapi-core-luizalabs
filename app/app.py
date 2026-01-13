@@ -29,6 +29,9 @@ from .security import (
     verify_password,
 )
 from .scraper_api import router as scraper_router # Import the scraper router
+from .routers.webhooks import router as webhooks_router
+from .modules.clubs.router import router as clubs_router
+from .dependencies import get_db, get_current_active_user
 
 # =====================================================
 # 📘 Inicialização do Banco de Dados
@@ -67,58 +70,12 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Include the scraper router
+# Include the routers
 app.include_router(scraper_router)
+app.include_router(webhooks_router)
+app.include_router(clubs_router)
 
-print("Scraper router included and CORS configured in FastAPI app.")
-
-
-# =====================================================
-# 🗃️ Dependência de Banco de Dados
-# =====================================================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# =====================================================
-# 🔐 Configuração de Autenticação (OAuth2)
-# =====================================================
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)
-):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Credenciais inválidas",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    payload = decode_access_token(token)
-    if payload is None:
-        raise credentials_exception
-
-    email: str = payload.get("sub")
-    if email is None:
-        raise credentials_exception
-
-    user = crud.get_user_by_email(db, email=email)
-    if user is None:
-        raise credentials_exception
-
-    return user
-
-
-async def get_current_active_user(
-    current_user: Annotated[schemas.User, Depends(get_current_user)],
-):
-    """Retorna o usuário autenticado e ativo."""
-    return current_user
+print("Routers included and CORS configured in FastAPI app.")
 
 
 # =====================================================
@@ -135,97 +92,6 @@ app.mount(
 )
 
 
-# =====================================================
-# ⚽ Rotas de Clubes
-# =====================================================
-@app.post("/clubs/", response_model=schemas.ClubResponse)
-async def create_club(
-    name: str = Form(...),
-    initials: str = Form(...),
-    city: str = Form(...),
-    foundation_date: Optional[str] = Form(None),
-    br_titles: Optional[int] = Form(0),
-    training_center: Optional[str] = Form(None),
-    espn_url: Optional[str] = Form(None),
-    shield_image: Optional[UploadFile] = File(None),
-    banner_image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db),
-):
-    club_data = schemas.ClubCreate(
-        name=name,
-        initials=initials,
-        city=city,
-        foundation_date=date.fromisoformat(foundation_date)
-        if foundation_date
-        else None,
-        br_titles=br_titles,
-        training_center=training_center,
-        espn_url=espn_url,
-    )
-    return crud.create_club(db=db, club=club_data, shield_file=shield_image, banner_file=banner_image)
-
-
-@app.get("/clubs/", response_model=List[schemas.ClubResponse])
-def read_clubs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    clubs = crud.get_clubs(db, skip=skip, limit=limit)
-    return clubs
-
-
-@app.get("/clubs/{club_id}", response_model=schemas.ClubResponse)
-def read_club(club_id: int, db: Session = Depends(get_db)):
-    db_club = crud.get_club_with_players(db, club_id=club_id)
-    if db_club is None:
-        raise HTTPException(status_code=404, detail="Clube não encontrado")
-    return db_club
-
-
-@app.patch("/clubs/{club_id}", response_model=schemas.ClubResponse)
-async def update_club(
-    club_id: int,
-    name: Optional[str] = Form(None),
-    initials: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    foundation_date: Optional[str] = Form(None),
-    br_titles: Optional[int] = Form(None),
-    training_center: Optional[str] = Form(None),
-    espn_url: Optional[str] = Form(None),
-    shield_image: Optional[UploadFile] = File(None),
-    banner_image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_active_user),
-):
-    club_update_data = {
-        "name": name,
-        "initials": initials,
-        "city": city,
-        "br_titles": br_titles,
-        "training_center": training_center,
-        "espn_url": espn_url,
-    }
-
-    if foundation_date:
-        club_update_data["foundation_date"] = date.fromisoformat(foundation_date)
-    else:
-        club_update_data["foundation_date"] = None
-
-    club_update_data = {k: v for k, v in club_update_data.items() if v is not None}
-
-    club_update_schema = schemas.ClubCreate(**club_update_data)
-
-    db_club = crud.update_club(db, club_id=club_id, club_update=club_update_schema, shield_file=shield_image, banner_file=banner_image)
-    if db_club is None:
-        raise HTTPException(status_code=404, detail="Clube não encontrado")
-    return db_club
-
-
-@app.delete("/clubs/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_club(
-    club_id: int,
-    db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_active_user),
-):
-    if not crud.delete_club(db, club_id=club_id):
-        raise HTTPException(status_code=404, detail="Clube não encontrado")
 
 
 # =====================================================
@@ -713,6 +579,29 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     hashed_password = get_password_hash(user.password)
     db_user = crud.create_user(db=db, user=user, hashed_password=hashed_password)
     return db_user
+
+
+@app.post("/create-payment-intent")
+async def create_payment_intent(
+    current_user: Annotated[schemas.User, Depends(get_current_active_user)],
+):
+    try:
+        # Em um cenário real, você usaria stripe.PaymentIntent.create
+        # Aqui vamos simular a criação de uma intenção de pagamento
+        # intent = stripe.PaymentIntent.create(
+        #     amount=2990, # R$ 29,90
+        #     currency='brl',
+        #     metadata={'user_id': current_user.id}
+        # )
+        # return {"client_secret": intent.client_secret}
+        
+        # Simulação para fins de demonstração
+        return {
+            "client_secret": f"pi_simulated_{uuid.uuid4()}_secret_{uuid.uuid4()}",
+            "payment_id": f"pi_simulated_{uuid.uuid4()}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/token", response_model=schemas.Token)

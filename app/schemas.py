@@ -22,6 +22,7 @@ class User(UserBase):
     id: int
     is_active: bool = True
     profile_image_url: str | None = None
+    subscription_status: str = 'free'
 
     class Config:
         from_attributes = True
