@@ -1,16 +1,9 @@
 import re
 import sys
-from typing import Dict, List, Tuple, Optional
-
-import requests
-import pandas as pd
-import re
-import sys
 from typing import Dict, List, Tuple, Optional, Union
 
 import requests
 import pandas as pd
-
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -64,12 +57,15 @@ class ESPNScraperService:
     # PARSERS
     # ------------------------------------------------------------------
     def _parse_float(self, text: str, unit: str = "") -> float:
-        if not text or text.strip() in ["", "--"]:
-            return 0.0
         try:
-            return float(text.replace(unit, "").replace(",", ".").strip())
-        except ValueError:
-            logger.warning(f"Falha ao converter float: '{text}'")
+            if not text or text.strip() in ["", "--"]:
+                return 0.0
+            if unit:
+                text = text.replace(unit, "")
+            # Remove any non-numeric characters except dot and comma
+            clean = re.sub(r"[^\d.,]", "", text).replace(",", ".")
+            return float(clean) if clean else 0.0
+        except:
             return 0.0
 
     def _parse_int(self, text: str) -> int:
@@ -89,205 +85,216 @@ class ESPNScraperService:
     def _extract_name_and_number(self, text: str) -> Tuple[str, int]:
         # Remove trailing numbers (jersey numbers) from name
         # ESPN often appends the number to the name like "Agustín Rossi1"
-        match = re.match(r"^(.*?)\s*(\d+)$", text.strip())
+        text = text.strip()
+        # Try to match name followed by space and number
+        match = re.match(r"^(.*?)\s+(\d+)$", text)
         if match:
             return match.group(1).strip(), int(match.group(2))
         
-        # If no space before number, try to split at the first digit
-        match_no_space = re.match(r"^([^\d]+)(\d+)$", text.strip())
+        # If no space before number, try to split at the first digit that is at the end
+        match_no_space = re.match(r"^([^\d]+)(\d+)$", text)
         if match_no_space:
             return match_no_space.group(1).strip(), int(match_no_space.group(2))
             
-        return text.strip(), 0
+        return text, 0
 
     # ------------------------------------------------------------------
-    # EXTRAÇÃO DE LINHA
+    # EXTRAÇÃO DE LINHA COM MAPEAMENTO DE CABEÇALHO
     # ------------------------------------------------------------------
-    def _extract_player_data(self, row, is_goalkeeper: bool) -> Optional[Union[schemas.GoalkeeperCreate, schemas.FieldPlayerCreate]]:
-        """Extrai dados de uma linha da tabela."""
+    def _extract_player_data_robust(self, row, header_map: Dict[str, int]) -> Optional[Dict]:
+        """Extrai dados de uma linha usando o mapeamento de cabeçalhos."""
         cols = row.find_all("td")
-        if len(cols) < 9:
+        if not cols:
             return None
 
-        name_raw, jersey_number = self._extract_name_and_number(cols[0].text.strip())
-        name_raw = self._parse_str(name_raw)
-        position_raw = self._parse_str(cols[1].get_text(strip=True))
-        age = self._parse_int(cols[2].text)
-        height = self._parse_float(cols[3].text, "m")
-        weight = self._parse_float(cols[4].text, "kg")
-        nationality = self._parse_str(cols[5].text)
-        games = self._parse_int(cols[6].text)
-        substitutions = self._parse_int(cols[7].text)
+        def get_val(keys: List[str], default=None):
+            for key in keys:
+                if key in header_map:
+                    idx = header_map[key]
+                    if idx < len(cols):
+                        return cols[idx].text.strip()
+            return default
+
+        name_raw = get_val(["NOME", "NAME", "PLAYER"], "")
+        if not name_raw:
+            return None
+            
+        name, jersey_number = self._extract_name_and_number(name_raw)
+        pos_raw = get_val(["POS"], "0")
+        
+        # Determina se é goleiro pela posição na linha
+        is_goalkeeper = pos_raw.upper() == "G"
+
+        data = {
+            "name": name,
+            "position_raw": pos_raw,
+            "is_goalkeeper": is_goalkeeper,
+            "age": self._parse_int(get_val(["AGE", "IDADE"])),
+            "height": self._parse_float(get_val(["HT", "ALT"])),
+            "weight": self._parse_float(get_val(["WT", "P"])),
+            "nationality": get_val(["NAT", "NAC"], "0"),
+            "games": self._parse_int(get_val(["J", "P", "GP"])),
+            "substitutions": self._parse_int(get_val(["SUB", "SB"])),
+            "fouls_committed": self._parse_int(get_val(["FC"])),
+            "fouls_suffered": self._parse_int(get_val(["FA", "FS"])),
+            "yellow_cards": self._parse_int(get_val(["YC", "CA"])),
+            "red_cards": self._parse_int(get_val(["RC", "CV"])),
+            "assists": self._parse_int(get_val(["A"])),
+        }
 
         if is_goalkeeper:
-            try:
-                # ✅ CORREÇÃO: Usar nomes das colunas do banco de dados
-                goalkeeper_data = schemas.GoalkeeperCreate(
-                    name=name_raw,
-                    position="Goleiro",
-                    age=age,
-                    height=height,
-                    weight=weight,
-                    nationality=nationality,
-                    games=games,
-                    substitutions=substitutions,
-                    saves=self._parse_int(cols[8].text),      # Defesas
-                    goals_conceded=self._parse_int(cols[9].text),    # Gols sofridos (GS)
-                    assists=self._parse_int(cols[10].text),     # Assistências
-                    fouls_committed=self._parse_int(cols[11].text),    # Faltas cometidas (FC)
-                    fouls_suffered=self._parse_int(cols[12].text),    # Faltas sofridas (FS)
-                    yellow_cards=self._parse_int(cols[13].text),    # Cartões amarelos (CA)
-                    red_cards=self._parse_int(cols[14].text),    # Cartões vermelhos (CV)
-                    club_id=0,  # Será preenchido depois
-                )
-                logger.debug(f"Goalkeeper data extracted: {goalkeeper_data.model_dump_json()}")
-                return goalkeeper_data
-            except IndexError:
-                logger.warning(f"Colunas insuficientes para goleiro: {name_raw}")
-                return None
-            except Exception as e:
-                logger.error(f"Erro ao criar Goalkeeper para {name_raw}: {e}")
-                return None
+            data["saves"] = self._parse_int(get_val(["D", "S", "SAVES"]))
+            data["goals_conceded"] = self._parse_int(get_val(["GS"]))
         else:
-            position_map = {
-                "D": "Defensor",
-                "M": "Meio-Campista",
-                "A": "Atacante",
-            }
-            position = position_map.get(position_raw, position_raw)
-            try:
-                # ✅ CORREÇÃO: Usar nomes das colunas do banco de dados
-                field_player_data = schemas.FieldPlayerCreate(
-                    name=name_raw,
-                    position=position,
-                    age=age,
-                    height=height,
-                    weight=weight,
-                    nationality=nationality,
-                    games=games,
-                    substitutions=substitutions,
-                    goals=self._parse_int(cols[8].text),      # Gols
-                    assists=self._parse_int(cols[9].text),    # Assistências
-                    total_shots=self._parse_int(cols[10].text),   # Total chutes (TC)
-                    shots_on_goal=self._parse_int(cols[11].text),   # Chutes no gol (CG)
-                    fouls_committed=self._parse_int(cols[12].text),   # Faltas cometidas (FC)
-                    fouls_suffered=self._parse_int(cols[13].text),  # Faltas sofridas (FS)
-                    yellow_cards=self._parse_int(cols[14].text),  # Cartões amarelos (CA)
-                    red_cards=self._parse_int(cols[15].text),  # Cartões vermelhos (CV)
-                    club_id=0,  # Será preenchido depois
-                )
-                logger.debug(f"FieldPlayer data extracted: {field_player_data.model_dump_json()}")
-                return field_player_data
-            except IndexError:
-                logger.warning(f"Colunas insuficientes para jogador de campo: {name_raw}")
-                return None
-            except Exception as e:
-                logger.error(f"Erro ao criar FieldPlayer para {name_raw}: {e}")
-                return None
+            data["goals"] = self._parse_int(get_val(["G"]))
+            data["total_shots"] = self._parse_int(get_val(["TC", "SH"]))
+            data["shots_on_goal"] = self._parse_int(get_val(["CG", "SO"]))
+
+        return data
 
     # ------------------------------------------------------------------
     # SCRAPING PRINCIPAL
     # ------------------------------------------------------------------
     def scrape_club_squad(self, espn_url: str, club_id: int):
-        logger.info(f"Iniciando scraping | clube={club_id} | url={espn_url}")
+        logger.info(f"Iniciando scraping robusto | clube={club_id} | url={espn_url}")
 
         errors = []
-        goalkeepers_data: List[schemas.GoalkeeperCreate] = []
-        field_players_data: List[schemas.FieldPlayerCreate] = []
+        # Acumulador de dados por jogador: {(name, is_goalkeeper): data_dict}
+        accumulated_players: Dict[Tuple[str, bool], Dict] = {}
 
         try:
+            logger.debug(f"Acessando URL da ESPN: {espn_url}")
             response = requests.get(espn_url, headers=self.headers, timeout=30)
             response.raise_for_status()
             response.encoding = response.apparent_encoding
-        except requests.RequestException:
-            logger.exception("Erro HTTP ao acessar ESPN")
-            return [], [], ["Erro HTTP"]
+        except Exception as e:
+            logger.exception(f"Erro ao acessar ESPN: {e}")
+            return [], [], [f"Erro de conexão/HTTP: {str(e)}"]
 
         soup = BeautifulSoup(response.text, "html.parser")
         tables = soup.find_all("table", class_="Table")
 
-        # 🔍 LOG DE TODAS AS TABELAS
         logger.debug(f"Total de tabelas encontradas: {len(tables)}")
 
         for idx, table in enumerate(tables, start=1):
-            headers = [th.text.strip() for th in table.find_all("th")]
-            rows = table.find("tbody").find_all("tr") if table.find("tbody") else []
+            headers = [th.text.strip().upper() for th in table.find_all("th")]
             
+            # Normalização de headers para lidar com duplicatas (como 'P') e variações
+            header_map = {}
+            for i, h in enumerate(headers):
+                if h == "P":
+                    if i < 6: h = "WT" # Peso
+                    else: h = "J"     # Jogos
+                
+                mapping = {
+                    "IDADE": "AGE", "ALT": "HT", "NAC": "NAT", "SB": "SUB",
+                    "S": "SAVES", "D": "SAVES", "GC": "GA", "GS": "GA",
+                    "CA": "YC", "CV": "RC", "SH": "TC", "SO": "CG",
+                    "ST": "CG", "A": "AST", "G": "GLS"
+                }
+                normalized_h = mapping.get(h, h)
+                if normalized_h not in header_map:
+                    header_map[normalized_h] = i
+            
+            rows = table.find("tbody").find_all("tr") if table.find("tbody") else []
             if not rows:
-                # Try finding rows directly in table if tbody is missing
-                rows = table.find_all("tr")[1:] # Skip header row
+                rows = table.find_all("tr")[1:]
 
-            is_goalkeeper = any(h in headers for h in ["GS", "Saves", "D"])
-
-            logger.debug(
-                f"Tabela #{idx} | "
-                f"Goleiros={is_goalkeeper} | "
-                f"Colunas={headers} | "
-                f"Linhas={len(rows)}"
-            )
+            logger.debug(f"Tabela #{idx} | Colunas={headers} | Linhas={len(rows)}")
 
             for row in rows:
-                player = self._extract_player_data(row, is_goalkeeper)
-                if player:
-                    player.club_id = club_id # Ensure club_id is set
-                    if isinstance(player, schemas.GoalkeeperCreate):
-                        goalkeepers_data.append(player)
-                    elif isinstance(player, schemas.FieldPlayerCreate):
-                        field_players_data.append(player)
+                player_data = self._extract_player_data_robust(row, header_map)
+                if player_data:
+                    key = (player_data["name"], player_data["is_goalkeeper"])
+                    if key not in accumulated_players:
+                        accumulated_players[key] = player_data
+                    else:
+                        # Atualiza dados existentes com novos valores (se não forem 0)
+                        for k, v in player_data.items():
+                            if v not in [0, 0.0, "0", None]:
+                                accumulated_players[key][k] = v
 
-        logger.debug(f"Goleiros extraídos: {len(goalkeepers_data)}")
-        logger.debug(f"Jogadores de campo extraídos: {len(field_players_data)}")
+        logger.info(f"Total de jogadores únicos extraídos: {len(accumulated_players)}")
 
         saved_goalkeepers = []
         saved_field_players = []
 
-        # Save Goalkeepers
-        for gk_data in goalkeepers_data:
+        for (name, is_goalkeeper), data in accumulated_players.items():
             try:
-                existing_goalkeeper = self.db.query(models.Goalkeeper).filter(
-                    models.Goalkeeper.name == gk_data.name,
-                    models.Goalkeeper.club_id == club_id,
-                ).first()
-
-                if existing_goalkeeper:
-                    # Atualiza dados existentes
-                    for k, v in gk_data.model_dump(exclude_unset=True).items():
-                        setattr(existing_goalkeeper, k, v)
-                    self.db.add(existing_goalkeeper)
-                    saved_goalkeepers.append(existing_goalkeeper)
-                    logger.info(f"Goleiro atualizado: {gk_data.name}")
+                if is_goalkeeper:
+                    gk_create = schemas.GoalkeeperCreate(
+                        name=data["name"],
+                        position="Goleiro",
+                        age=data["age"],
+                        height=data.get("height"),
+                        weight=data.get("weight"),
+                        nationality=data.get("nationality"),
+                        games=data.get("games", 0),
+                        substitutions=data.get("substitutions", 0),
+                        saves=data.get("saves", 0),
+                        goals_conceded=data.get("goals_conceded", 0),
+                        assists=data.get("assists", 0),
+                        fouls_committed=data.get("fouls_committed", 0),
+                        fouls_suffered=data.get("fouls_suffered", 0),
+                        yellow_cards=data.get("yellow_cards", 0),
+                        red_cards=data.get("red_cards", 0),
+                        club_id=club_id
+                    )
+                    
+                    existing = self.db.query(models.Goalkeeper).filter(
+                        models.Goalkeeper.name == name,
+                        models.Goalkeeper.club_id == club_id
+                    ).first()
+                    
+                    if existing:
+                        for k, v in gk_create.model_dump(exclude_unset=True).items():
+                            setattr(existing, k, v)
+                        self.db.add(existing)
+                        saved_goalkeepers.append(existing)
+                    else:
+                        new_gk = crud.create_goalkeeper(self.db, gk_create)
+                        saved_goalkeepers.append(new_gk)
                 else:
-                    # Cria novo goleiro
-                    new_gk = crud.create_goalkeeper(self.db, gk_data)
-                    saved_goalkeepers.append(new_gk)
-                    logger.info(f"Goleiro criado: {gk_data.name}")
+                    position_map = {"D": "Defensor", "M": "Meio-Campista", "A": "Atacante"}
+                    pos_raw = data["position_raw"]
+                    position = position_map.get(pos_raw, pos_raw)
+                    
+                    fp_create = schemas.FieldPlayerCreate(
+                        name=data["name"],
+                        position=position,
+                        age=data["age"],
+                        height=data.get("height"),
+                        weight=data.get("weight"),
+                        nationality=data.get("nationality"),
+                        games=data.get("games", 0),
+                        substitutions=data.get("substitutions", 0),
+                        goals=data.get("goals", 0),
+                        assists=data.get("assists", 0),
+                        total_shots=data.get("total_shots", 0),
+                        shots_on_goal=data.get("shots_on_goal", 0),
+                        fouls_committed=data.get("fouls_committed", 0),
+                        fouls_suffered=data.get("fouls_suffered", 0),
+                        yellow_cards=data.get("yellow_cards", 0),
+                        red_cards=data.get("red_cards", 0),
+                        club_id=club_id
+                    )
+                    
+                    existing = self.db.query(models.FieldPlayer).filter(
+                        models.FieldPlayer.name == name,
+                        models.FieldPlayer.club_id == club_id
+                    ).first()
+                    
+                    if existing:
+                        for k, v in fp_create.model_dump(exclude_unset=True).items():
+                            setattr(existing, k, v)
+                        self.db.add(existing)
+                        saved_field_players.append(existing)
+                    else:
+                        new_fp = crud.create_field_player(self.db, fp_create)
+                        saved_field_players.append(new_fp)
             except Exception as e:
-                logger.exception(f"Erro salvando goleiro {gk_data.name}: {e}")
-                errors.append(gk_data.name)
-
-        # Save Field Players
-        for fp_data in field_players_data:
-            try:
-                existing_field_player = self.db.query(models.FieldPlayer).filter(
-                    models.FieldPlayer.name == fp_data.name,
-                    models.FieldPlayer.club_id == club_id,
-                ).first()
-
-                if existing_field_player:
-                    # Atualiza dados existentes
-                    for k, v in fp_data.model_dump(exclude_unset=True).items():
-                        setattr(existing_field_player, k, v)
-                    self.db.add(existing_field_player)
-                    saved_field_players.append(existing_field_player)
-                    logger.info(f"Jogador de campo atualizado: {fp_data.name}")
-                else:
-                    # Cria novo jogador
-                    new_fp = crud.create_field_player(self.db, fp_data)
-                    saved_field_players.append(new_fp)
-                    logger.info(f"Jogador de campo criado: {fp_data.name}")
-            except Exception as e:
-                logger.exception(f"Erro salvando jogador de campo {fp_data.name}: {e}")
-                errors.append(fp_data.name)
+                logger.error(f"Erro ao salvar jogador {name}: {e}")
+                errors.append(name)
 
         self.db.commit()
         logger.success(f"Scraping finalizado | jogadores_salvos={len(saved_goalkeepers) + len(saved_field_players)}")

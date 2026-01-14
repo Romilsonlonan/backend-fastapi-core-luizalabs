@@ -1,19 +1,24 @@
 from datetime import date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ...database import SessionLocal
 from ... import schemas
-from .repository import ClubRepository
 from .service import ClubService
 from ...dependencies import get_current_active_user, get_db
+from ...core.container import DIContainer
 
 router = APIRouter(prefix="/clubs", tags=["Clubs"])
 
 def get_club_service(db: Session = Depends(get_db)) -> ClubService:
-    repository = ClubRepository(db)
-    return ClubService(repository)
+    return DIContainer.get_club_service(db)
+
+def get_scraper_service(db: Session = Depends(get_db)):
+    return DIContainer.get_scraper_service(db)
+
+def get_training_service(db: Session = Depends(get_db)):
+    return DIContainer.get_training_service(db)
 
 @router.post("/", response_model=schemas.ClubResponse)
 async def create_club(
@@ -93,3 +98,39 @@ def delete_club(
     current_user: schemas.User = Depends(get_current_active_user),
 ):
     service.delete_club(club_id)
+
+@router.get("/statistics/total_count/", response_model=schemas.TotalCountResponse)
+def get_total_clubs_count(
+    service: ClubService = Depends(get_club_service),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    count = service.repository.count()
+    return {"total_count": count}
+
+@router.post("/{club_id}/scrape_players")
+async def scrape_club_players_frontend_path(
+    club_id: int,
+    scraper_service = Depends(get_scraper_service),
+    club_service: ClubService = Depends(get_club_service),
+):
+    """
+    Endpoint esperado pelo frontend em /clubs/{club_id}/scrape_players
+    """
+    club = club_service.get_club_by_id(club_id)
+    if not club.espn_url:
+        raise HTTPException(status_code=400, detail="URL da ESPN não configurada.")
+    
+    # Chama o serviço de scraping
+    return await scraper_service.scrape_club_players(club.espn_url, club_id)
+
+@router.post("/{club_id}/training_routines")
+async def add_training_routine_frontend_path(
+    club_id: int,
+    routine_data: schemas.TrainingRoutineCreate,
+    training_service = Depends(get_training_service),
+):
+    """
+    Endpoint esperado pelo frontend em /clubs/{club_id}/training_routines
+    """
+    routine_data.club_id = club_id
+    return training_service.create_routine(routine_data)

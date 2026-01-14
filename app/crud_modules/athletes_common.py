@@ -66,7 +66,7 @@ def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = N
 
     field_players = []
     if hasattr(models.FieldPlayer, statistic):
-        field_players_query = db.query(models.FieldPlayer).filter(getattr(models.FieldPlayer, statistic) > 0)
+        field_players_query = db.query(models.FieldPlayer).filter(getattr(models.FieldPlayer, statistic) >= 0)
         if club_id:
             field_players_query = field_players_query.filter(models.FieldPlayer.club_id == club_id)
         field_players_query = field_players_query.order_by(desc(getattr(models.FieldPlayer, statistic)))
@@ -74,7 +74,7 @@ def get_top_players_by_statistic(db: Session, limit: int = 7, statistic: str = N
 
     goalkeepers = []
     if hasattr(models.Goalkeeper, statistic):
-        goalkeepers_query = db.query(models.Goalkeeper).filter(getattr(models.Goalkeeper, statistic) > 0)
+        goalkeepers_query = db.query(models.Goalkeeper).filter(getattr(models.Goalkeeper, statistic) >= 0)
         if club_id:
             goalkeepers_query = goalkeepers_query.filter(models.Goalkeeper.club_id == club_id)
         goalkeepers_query = goalkeepers_query.order_by(desc(getattr(models.Goalkeeper, statistic)))

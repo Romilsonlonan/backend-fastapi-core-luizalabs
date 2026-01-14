@@ -1,7 +1,7 @@
 import os
 import uuid
-from typing import Tuple
-from fastapi import HTTPException, UploadFile
+from typing import Tuple, Dict
+from ...core.exceptions import DomainException
 
 class ClubDomain:
     """
@@ -10,19 +10,21 @@ class ClubDomain:
     """
     
     @staticmethod
-    def validate_image(file: UploadFile, context: str) -> None:
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"Apenas imagens são permitidas para o {context}.")
-        if file.size > 5 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail=f"Imagem do {context} muito grande (máximo 5MB).")
+    def validate_club_data(data: Dict) -> None:
+        """
+        Validações complexas de domínio para o clube.
+        """
+        if not data.get("name"):
+            raise DomainException("O nome do clube é obrigatório.")
+        
+        if len(data.get("name", "")) < 3:
+            raise DomainException("O nome do clube deve ter pelo menos 3 caracteres.")
 
-    @staticmethod
-    def generate_file_path(file: UploadFile, prefix: str) -> Tuple[str, str]:
-        file_ext = os.path.splitext(file.filename)[1]
-        file_name = f"{prefix}_{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join("uploaded_images", file_name)
-        return file_path, file_name
+        if not data.get("initials"):
+            raise DomainException("As iniciais do clube são obrigatórias.")
 
     @staticmethod
     def format_initials(initials: str) -> str:
+        if not initials:
+            return ""
         return initials.upper()[:3]
