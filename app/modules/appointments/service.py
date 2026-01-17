@@ -10,7 +10,7 @@ class AppointmentService:
         self.repository = repository
         self.domain = AppointmentDomain()
 
-    def get_appointments(self, nutritionist_id: int, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
+    def get_appointments(self, nutritionist_id: Optional[int], start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
         return self.repository.get_appointments(nutritionist_id, start_date, end_date)
 
     def create_appointment(self, appointment_schema: schemas.AppointmentCreate):

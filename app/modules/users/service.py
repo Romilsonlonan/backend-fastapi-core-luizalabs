@@ -22,14 +22,16 @@ class UserService:
 
         hashed_password = get_password_hash(user_schema.password)
         user_data = {
-            "name": user_schema.name,
-            "email": user_schema.email,
-            "hashed_password": hashed_password
+            "name": user_schema.name or "Usuário",
+            "email": user_schema.email.lower(),
+            "hashed_password": hashed_password,
+            "profession": user_schema.profession,
+            "subscription_status": user_schema.subscription_status or "free"
         }
         return self.repository.create(user_data)
 
     def authenticate_user(self, email: str, password: str):
-        user = self.repository.get_by_email(email)
+        user = self.repository.get_by_email(email.lower())
         if not user or not verify_password(password, user.hashed_password):
             return None
         return user
@@ -65,3 +67,6 @@ class UserService:
         if not user:
             raise NotFoundException("Usuário não encontrado")
         return self.repository.delete(user)
+
+    def get_users(self, skip: int = 0, limit: int = 100):
+        return self.repository.get_all(skip, limit)

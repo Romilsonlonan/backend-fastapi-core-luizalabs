@@ -17,10 +17,13 @@ def get_appointment_service(db: Session = Depends(get_db)) -> AppointmentService
 def read_appointments(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    nutritionist_id: Optional[int] = None,
     current_user: schemas.User = Depends(get_current_active_user),
     service: AppointmentService = Depends(get_appointment_service),
 ):
-    return service.get_appointments(nutritionist_id=current_user.id, start_date=start_date, end_date=end_date)
+    # Se nutritionist_id não for passado, retorna todas as consultas (ou você pode manter o filtro se preferir)
+    # O usuário pediu para ver a agenda, então provavelmente quer ver tudo ou filtrar por profissional
+    return service.get_appointments(nutritionist_id=nutritionist_id, start_date=start_date, end_date=end_date)
 
 @router.post("/appointments/", response_model=schemas.AppointmentResponse)
 def create_appointment(

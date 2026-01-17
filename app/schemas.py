@@ -7,10 +7,12 @@ from pydantic import BaseModel, EmailStr, Field
 class UserBase(BaseModel):
     name: str | None = None
     email: EmailStr
+    profession: str | None = None
 
 
 class UserCreate(UserBase):
     password: str
+    subscription_status: Optional[str] = 'free'
 
 
 class PasswordChange(BaseModel):
@@ -23,6 +25,7 @@ class User(UserBase):
     is_active: bool = True
     profile_image_url: str | None = None
     subscription_status: str = 'free'
+    profession: str | None = None
 
     class Config:
         from_attributes = True
@@ -446,6 +449,7 @@ class AppointmentCreate(AppointmentBase):
 class AppointmentResponse(AppointmentBase):
     id: int
     nutritionist_id: int
+    nutritionist: Optional[User] = None
     service: ServiceResponse
     location: LocationResponse
 

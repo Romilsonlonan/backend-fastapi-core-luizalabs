@@ -8,8 +8,10 @@ class AppointmentRepository(IAppointmentRepository):
     def __init__(self, db: Session):
         self.db = db
 
-    def get_appointments(self, nutritionist_id: int, start_date: Optional[datetime], end_date: Optional[datetime]) -> List[models.Appointment]:
-        query = self.db.query(models.Appointment).filter(models.Appointment.nutritionist_id == nutritionist_id)
+    def get_appointments(self, nutritionist_id: Optional[int], start_date: Optional[datetime], end_date: Optional[datetime]) -> List[models.Appointment]:
+        query = self.db.query(models.Appointment)
+        if nutritionist_id is not None:
+            query = query.filter(models.Appointment.nutritionist_id == nutritionist_id)
         if start_date:
             query = query.filter(models.Appointment.start_time >= start_date)
         if end_date:

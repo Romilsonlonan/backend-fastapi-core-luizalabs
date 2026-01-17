@@ -149,12 +149,28 @@ class ScraperService:
                             return self._parse_float(val_text, "") if is_float else self._parse_int(val_text)
                 return default
 
+            # Extração robusta de nacionalidade
+            nationality = "N/A"
+            if "NAC" in header_map or "NAT" in header_map:
+                idx = header_map.get("NAC") or header_map.get("NAT")
+                if idx < len(cols):
+                    cell = cols[idx]
+                    text = cell.text.strip()
+                    img = cell.find("img")
+                    if img:
+                        nationality = img.get("title") or img.get("alt") or text
+                    else:
+                        nationality = text
+            
+            if not nationality or nationality.strip() in ["", "--", "0", "N / D"]:
+                nationality = "N/A"
+
             data = {
                 "name": name,
                 "age": get_val(["IDADE", "AGE"]),
-                "height": get_val(["ALT", "HT", "HT", "ALT"], 0.0, True),
+                "height": get_val(["ALT", "HT", "ALT"], 0.0, True),
                 "weight": get_val(["WT", "P"], 0.0, True),
-                "nationality": cols[header_map["NAC"]].text.strip() if "NAC" in header_map and header_map["NAC"] < len(cols) else "N/A",
+                "nationality": nationality.strip(),
                 "games": get_val(["J", "P", "APP"]),
                 "substitutions": get_val(["SUB", "SB"]),
             }

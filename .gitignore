@@ -224,6 +224,7 @@ analise_colunas_espn.json
 
 # Database files
 app.db
+sql_app.db
 cbf_database.db
 sql_app.db.backup
 

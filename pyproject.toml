@@ -75,12 +75,16 @@ db-v = 'alembic current'
 db-hist = 'alembic history'
 
 # Resetar banco (apaga e recria)
-db-reset = 'rm app.db'
+db-res = 'rm sql_app.db'
 
 db-mig = 'alembic revision --autogenerate -m "Auto migration $(date +%Y%m%d_%H%M%S)"'
 
 # ⭐ Voltar uma migration (desfazer última alteração)
 db-down = 'alembic downgrade -1'
+
+#"⭐ Caso apresente esse erro: sqlite3.OperationalError: no such column: users.profession(ou qualquer outra coluna)"
+#alembic revision --autogenerate -m "add profession"
+#alembic upgrade head
 
 #ruff check .
 #ruff format .

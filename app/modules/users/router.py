@@ -21,6 +21,15 @@ def get_user_service(db: Session = Depends(get_db)) -> UserService:
 def register_user(user: schemas.UserCreate, service: UserService = Depends(get_user_service)):
     return service.register_user(user)
 
+@router.get("/users/", response_model=list[schemas.User])
+def read_users(
+    skip: int = 0, 
+    limit: int = 100, 
+    service: UserService = Depends(get_user_service),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    return service.get_users(skip=skip, limit=limit)
+
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],

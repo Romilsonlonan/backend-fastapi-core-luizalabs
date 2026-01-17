@@ -16,7 +16,12 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
-    db_user = models.User(name=user.name, email=user.email, hashed_password=hashed_password)
+    db_user = models.User(
+        name=user.name or "Usuário", 
+        email=user.email.lower(), 
+        hashed_password=hashed_password,
+        profession=user.profession
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -72,14 +77,21 @@ def update_user_subscription(db: Session, user_id: int, status: str):
 
 
 def create_admin_user_if_not_exists(db: Session, admin_email: str, admin_password: str, admin_name: str, get_password_hash_func):
-    db_user = get_user_by_email(db, email=admin_email)
+    email_lower = admin_email.lower()
+    db_user = get_user_by_email(db, email=email_lower)
     if not db_user:
         hashed_password = get_password_hash_func(admin_password)
-        admin_user = models.User(name=admin_name, email=admin_email, hashed_password=hashed_password)
+        admin_user = models.User(
+            name=admin_name, 
+            email=email_lower, 
+            hashed_password=hashed_password,
+            subscription_status='premium',
+            profession='Administrador'
+        )
         db.add(admin_user)
         db.commit()
         db.refresh(admin_user)
-        print(f"Usuário administrador '{admin_email}' criado.")
+        print(f"Usuário administrador '{email_lower}' criado.")
         return admin_user
-    print(f"Usuário administrador '{admin_email}' já existe.")
+    print(f"Usuário administrador '{email_lower}' já existe.")
     return db_user

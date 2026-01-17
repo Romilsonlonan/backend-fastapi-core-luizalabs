@@ -5,7 +5,7 @@ from ... import models
 
 class IAppointmentRepository(ABC):
     @abstractmethod
-    def get_appointments(self, nutritionist_id: int, start_date: Optional[datetime], end_date: Optional[datetime]) -> List[models.Appointment]:
+    def get_appointments(self, nutritionist_id: Optional[int], start_date: Optional[datetime], end_date: Optional[datetime]) -> List[models.Appointment]:
         pass
 
     @abstractmethod

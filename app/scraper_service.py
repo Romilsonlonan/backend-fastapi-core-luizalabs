@@ -77,9 +77,9 @@ class ESPNScraperService:
             logger.warning(f"Falha ao converter int: '{text}'")
             return 0
 
-    def _parse_str(self, text: str) -> str:
-        if not text or text.strip() in ["", "--"]:
-            return "0"
+    def _parse_str(self, text: str) -> Optional[str]:
+        if not text or text.strip() in ["", "--", "0", "N/A", "N / D"]:
+            return None
         return text.strip()
 
     def _extract_name_and_number(self, text: str) -> Tuple[str, int]:
@@ -112,7 +112,18 @@ class ESPNScraperService:
                 if key in header_map:
                     idx = header_map[key]
                     if idx < len(cols):
-                        return cols[idx].text.strip()
+                        # Tenta pegar o texto
+                        text = cols[idx].text.strip()
+                        
+                        # Se for nacionalidade, tenta pegar de uma imagem (flag) primeiro
+                        if any(k in ["NAT", "NAC", "NACIONALIDADE", "PAÍS"] for k in keys):
+                            img = cols[idx].find("img")
+                            if img:
+                                # Prioriza title, depois alt, depois o texto da célula
+                                val = img.get("title") or img.get("alt")
+                                if val: return val.strip()
+                        
+                        return text
             return default
 
         name_raw = get_val(["NOME", "NAME", "PLAYER"], "")
@@ -123,6 +134,7 @@ class ESPNScraperService:
         pos_raw = get_val(["POS"], "0")
         
         # Determina se é goleiro pela posição na linha
+        # Na ESPN, 'G' é Goleiro. Mas precisamos garantir que estamos pegando da coluna POS.
         is_goalkeeper = pos_raw.upper() == "G"
 
         data = {
@@ -132,7 +144,7 @@ class ESPNScraperService:
             "age": self._parse_int(get_val(["AGE", "IDADE"])),
             "height": self._parse_float(get_val(["HT", "ALT"])),
             "weight": self._parse_float(get_val(["WT", "P"])),
-            "nationality": get_val(["NAT", "NAC"], "0"),
+            "nationality": self._parse_str(get_val(["NAT", "NAC", "NACIONALIDADE", "PAÍS"])),
             "games": self._parse_int(get_val(["J", "P", "GP"])),
             "substitutions": self._parse_int(get_val(["SUB", "SB"])),
             "fouls_committed": self._parse_int(get_val(["FC"])),
@@ -177,6 +189,12 @@ class ESPNScraperService:
         logger.debug(f"Total de tabelas encontradas: {len(tables)}")
 
         for idx, table in enumerate(tables, start=1):
+            # Tenta identificar se é a tabela de goleiros pelo título anterior (h2 ou h1)
+            is_gk_table = False
+            prev_h2 = table.find_previous(["h2", "h1", "div"])
+            if prev_h2 and "GOLEIRO" in prev_h2.text.upper():
+                is_gk_table = True
+
             headers = [th.text.strip().upper() for th in table.find_all("th")]
             
             # Normalização de headers para lidar com duplicatas (como 'P') e variações
@@ -205,6 +223,10 @@ class ESPNScraperService:
             for row in rows:
                 player_data = self._extract_player_data_robust(row, header_map)
                 if player_data:
+                    # Força is_goalkeeper se detectamos que a tabela é de goleiros
+                    if is_gk_table:
+                        player_data["is_goalkeeper"] = True
+                    
                     key = (player_data["name"], player_data["is_goalkeeper"])
                     if key not in accumulated_players:
                         accumulated_players[key] = player_data
