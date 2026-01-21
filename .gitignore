@@ -231,3 +231,11 @@ sql_app.db.backup
 # Sensitive configuration files
 .env 
 .env/local
+
+# Uploads
+uploaded_images/*
+!uploaded_images/.gitkeep
+
+# Databases and Logs
+*.db
+*.log

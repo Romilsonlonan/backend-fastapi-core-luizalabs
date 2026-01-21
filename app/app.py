@@ -56,6 +56,10 @@ app.add_middleware(
 # =====================================================
 # 🛣️ Registro de Rotas (Arquitetura Modular)
 # =====================================================
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 app.include_router(clubs_router)
 app.include_router(athletes_router)
 app.include_router(training_router)
