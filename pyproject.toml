@@ -24,7 +24,8 @@ dependencies = [
     "pandera", # For data validation
     "pandas", # For DataFrame operations with Pandera
     "loguru (>=0.7.3,<0.8.0)",
-    "stripe (>=14.1.0,<15.0.0)"
+    "stripe (>=14.1.0,<15.0.0)",
+    "taskipy (>=1.14.1,<2.0.0)"
 ]
 package-mode = false
 

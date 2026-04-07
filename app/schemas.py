@@ -192,6 +192,19 @@ class TokenData(BaseModel):
     email: EmailStr | None = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class MessageResponse(BaseModel):
+    msg: str
+
+
 class ClubCreate(BaseModel):
     name: str
     initials: str

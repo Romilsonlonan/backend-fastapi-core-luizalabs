@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from ... import models
@@ -34,3 +35,32 @@ class UserRepository(IUserRepository):
         self.db.delete(db_user)
         self.db.commit()
         return True
+
+    def create_password_reset_token(
+        self, *, user_id: int, token: str, expires_at: datetime
+    ) -> models.PasswordResetToken:
+        db_token = models.PasswordResetToken(
+            user_id=user_id,
+            token=token,
+            expires_at=expires_at,
+            used_at=None,
+        )
+        self.db.add(db_token)
+        self.db.commit()
+        self.db.refresh(db_token)
+        return db_token
+
+    def get_password_reset_token(self, token: str) -> Optional[models.PasswordResetToken]:
+        return (
+            self.db.query(models.PasswordResetToken)
+            .filter(models.PasswordResetToken.token == token)
+            .first()
+        )
+
+    def mark_password_reset_token_used(
+        self, reset_token: models.PasswordResetToken
+    ) -> models.PasswordResetToken:
+        reset_token.used_at = datetime.utcnow()
+        self.db.commit()
+        self.db.refresh(reset_token)
+        return reset_token

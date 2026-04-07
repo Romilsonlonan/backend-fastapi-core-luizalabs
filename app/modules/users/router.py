@@ -11,6 +11,7 @@ from ...core.container import DIContainer
 from .service import UserService
 from ...config import settings
 from ...security import create_access_token
+from ...core.exceptions import DomainException
 
 router = APIRouter(tags=["Users"])
 
@@ -48,6 +49,22 @@ async def login_for_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/auth/forgot-password", response_model=schemas.MessageResponse)
+async def forgot_password(payload: schemas.ForgotPasswordRequest, service: UserService = Depends(get_user_service)):
+    # Sempre retorna a mesma mensagem, independente do e-mail existir ou não.
+    service.request_password_reset(payload.email)
+    return {"msg": "Se o e-mail existir, enviaremos instruções."}
+
+
+@router.post("/auth/reset-password", response_model=schemas.MessageResponse)
+async def reset_password(payload: schemas.ResetPasswordRequest, service: UserService = Depends(get_user_service)):
+    try:
+        service.reset_password(payload.token, payload.new_password)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.detail)
+    return {"msg": "Senha atualizada com sucesso"}
 
 @router.get("/users/me/", response_model=schemas.User)
 async def read_users_me(
